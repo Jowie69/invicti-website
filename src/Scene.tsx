@@ -322,7 +322,7 @@ export function Scene() {
                     width="1600"
                     height="1100"
                     alt=""
-                    loading="eager"
+                    loading={index < 4 ? "eager" : "lazy"}
                     fetchPriority={index < 4 ? "high" : "auto"}
                     decoding="async"
                     style={{ objectPosition: item.position }}
