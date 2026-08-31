@@ -1,4 +1,68 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
+
+// Karaoke-style word-by-word text animation
+function KaraokeText({ text, className = "" }: { text: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      // start when top hits 80% of screen, finish when top hits 20%
+      const start = vh * 0.82;
+      const end = vh * 0.22;
+      const p = Math.max(0, Math.min(1, (start - rect.top) / (start - end)));
+      setProgress(p);
+    };
+    window.addEventListener("scroll", update, { passive: true });
+    update();
+    return () => window.removeEventListener("scroll", update);
+  }, []);
+
+  const words = text.split(" ");
+  const total = words.length;
+  return (
+    <span ref={ref} className={`karaoke-text ${className}`} aria-label={text}>
+      {words.map((word, i) => {
+        const wordStart = i / total;
+        const wordEnd = (i + 1) / total;
+        const wordProgress = Math.max(0, Math.min(1, (progress - wordStart) / (wordEnd - wordStart)));
+        return (
+          <span
+            key={i}
+            className="karaoke-word"
+            style={{ "--wp": wordProgress } as CSSProperties}
+          >
+            {word}{i < total - 1 ? " " : ""}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+// Scroll-reveal wrapper
+function Reveal({ children, className = "", delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { el.classList.add("is-revealed"); observer.disconnect(); } },
+      { rootMargin: "0px 0px -12% 0px", threshold: 0.08 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className={`reveal-wrap ${className}`} style={{ "--reveal-delay": `${delay}ms` } as CSSProperties}>
+      {children}
+    </div>
+  );
+}
 
 type CaseStudy = {
   client: string;
@@ -211,6 +275,7 @@ export function Scene() {
           const distance = Math.max(1, rect.height - window.innerHeight);
           const progress = Math.max(0, Math.min(1, -rect.top / distance));
           hero.style.setProperty("--gallery-progress", progress.toFixed(4));
+          hero.style.setProperty("--hero-seam", Math.max(0, Math.min(1, (progress - 0.76) / 0.24)).toFixed(4));
         }
         ticking = false;
       });
@@ -260,22 +325,25 @@ export function Scene() {
             </div>
             <div className="hero-vignette" aria-hidden="true" />
             <div className="hero-intro"><p className="eyebrow">Independent AI creative studio<br />Manila / Everywhere</p><p>Ten disciplines. One connected team building smarter systems, stronger stories and digital work with a pulse.</p><div className="hero-actions"><a className="button primary" href="mailto:hello@invicti.agency?subject=Start%20a%20project">Start a project <span>↗</span></a><button className="button ghost" onClick={() => setGalleryIndex(0)}>Explore all ten <span>＋</span></button></div></div>
-            <div className="hero-title"><p>We make ambitious ideas</p><h1>UNCONQUERED</h1><span>within.</span></div>
+            <div className="hero-title"><p>We make ambitious ideas</p><h1>UNCONQUERED</h1><span className="within-text">within.</span></div>
             <a className="scroll-cue" href="#approach"><span>Scroll to enter</span><i>↓</i></a>
           </div>
         </section>
 
-        <section className="manifesto" id="approach"><PortalField /><p className="eyebrow">Our conviction</p><h2>Safe work<br />is invisible.</h2><p className="manifesto-copy">We turn sharp strategy into identities, campaigns and digital experiences that refuse to blend in.</p><div className="orbit-label orbit-one">CLARITY</div><div className="orbit-label orbit-two">COURAGE</div><div className="orbit-label orbit-three">CRAFT</div></section>
+        <section className="manifesto" id="approach"><PortalField /><p className="eyebrow">Our conviction</p><h2>Safe work<br />is invisible.</h2><p className="manifesto-copy"><KaraokeText text="We turn sharp strategy into identities, campaigns and digital experiences that refuse to blend in." /></p><div className="orbit-label orbit-one">CLARITY</div><div className="orbit-label orbit-two">COURAGE</div><div className="orbit-label orbit-three">CRAFT</div></section>
 
         <section className={`services-section service-active-${hoveredService}`} id="services" data-nav="approach" onPointerMove={moveGlow}>
-          <div className="service-aura" aria-hidden="true" /><div className="section-intro"><p className="eyebrow">How we move</p><h2>From first truth<br />to full impact.</h2></div>
-          <div className="service-layout"><div className="service-visual" aria-hidden="true"><span>0{hoveredService + 1}</span><strong>{services[hoveredService][1]}</strong><i /></div><div className="service-list">{services.map(([number, title, copy], index) => <article className={`service-row${hoveredService === index ? " active" : ""}`} key={title} onPointerEnter={() => setHoveredService(index)}><span>{number}</span><h3>{title}</h3><p>{copy}</p><i>↗</i></article>)}</div></div>
+          <div className="section-fade-top" aria-hidden="true" />
+          <div className="service-aura" aria-hidden="true" /><div className="section-intro"><Reveal><p className="eyebrow">How we move</p></Reveal><Reveal delay={100}><h2>From first truth<br />to full impact.</h2></Reveal></div>
+          <div className="service-layout"><div className="service-visual" aria-hidden="true"><span>0{hoveredService + 1}</span><strong>{services[hoveredService][1]}</strong><i /></div><div className="service-list">{services.map(([number, title, copy], index) => <article className={`service-row${hoveredService === index ? " active" : ""}`} key={title} onPointerEnter={() => setHoveredService(index)}><span>{number}</span><h3>{title}</h3><p><KaraokeText text={copy} /></p><i>↗</i></article>)}</div></div>
+          <div className="section-fade-bottom" aria-hidden="true" />
         </section>
 
         <ValidationLab />
 
         <section className="work-section" id="work">
-          <div className="work-head"><p className="eyebrow">Selected work · 2024—26</p><h2>BUILT TO<br />BE FELT.</h2><p>Five collaborations. One standard: useful work with a pulse.</p></div>
+          <div className="section-fade-top" aria-hidden="true" />
+          <div className="work-head"><Reveal><p className="eyebrow">Selected work · 2024—26</p></Reveal><Reveal delay={80}><h2>BUILT TO<br />BE FELT.</h2></Reveal><Reveal delay={160}><p>Five collaborations. One standard: useful work with a pulse.</p></Reveal></div>
           <div className="case-carousel" aria-roledescription="carousel" aria-label="Selected case studies" tabIndex={0} onKeyDown={(event) => { if (event.key === "ArrowLeft") changeCase(caseIndex - 1); if (event.key === "ArrowRight") changeCase(caseIndex + 1); }} onPointerDown={(event) => { swipeStart.current = event.clientX; }} onPointerUp={(event) => { if (swipeStart.current === null) return; const delta = event.clientX - swipeStart.current; if (Math.abs(delta) > 45) changeCase(caseIndex + (delta < 0 ? 1 : -1)); swipeStart.current = null; }}>
             <button className="case-peek previous" onClick={() => changeCase(caseIndex - 1)} aria-label="Previous case study"><img src={caseStudies[(caseIndex - 1 + caseStudies.length) % caseStudies.length].image} alt="" /><span>←</span></button>
             <article className={`case-card tone-${project.tone}`} key={project.title} aria-live="polite"><div className="case-copy"><div className="case-client"><span>{project.client}</span><b>{project.year}</b></div><h3>{project.title}</h3><p>{project.lead}</p><div className="case-services">{project.services.map((service) => <span key={service}>{service}</span>)}</div><button className="button case-button" onClick={() => setCaseDialog(project)}>View case study <span>↗</span></button></div><div className="case-image"><img src={project.image} alt={`${project.title} project artwork`} /><strong>{project.result}</strong></div></article>
@@ -285,11 +353,17 @@ export function Scene() {
         </section>
 
         <section className="about-section" id="about">
+          <div className="section-fade-top" aria-hidden="true" />
           <div className="about-sticky"><p className="eyebrow">About INVICTI</p><h2>SMALL TEAM.<br />BIG NERVE.</h2><div className="about-mark">I<span>+</span></div></div>
-          <div className="about-copy"><p>INVICTI is an independent creative agency for leaders who would rather define the category than decorate it.</p><p>We stay senior, curious and close to the work—from the first difficult question to the final moving pixel.</p><blockquote>“Unconquered” is not an aesthetic. It is the confidence to make the clearest choice, even when it is not the safest one.</blockquote><div className="about-stats"><div><strong>12</strong><span>Years shaping brands</span></div><div><strong>18</strong><span>Markets reached</span></div><div><strong>01</strong><span>Senior team, start to finish</span></div></div><div className="facts"><span><b>01</b> strategy</span><span><b>02</b> identity</span><span><b>03</b> digital</span><span><b>04</b> campaign</span></div></div>
+          <div className="about-copy"><Reveal><p>INVICTI is an independent creative agency for leaders who would rather define the category than decorate it.</p></Reveal><Reveal delay={120}><p>We stay senior, curious and close to the work—from the first difficult question to the final moving pixel.</p></Reveal><Reveal delay={240}><blockquote><KaraokeText text='"Unconquered" is not an aesthetic. It is the confidence to make the clearest choice, even when it is not the safest one.' /></blockquote></Reveal><div className="about-stats"><div><strong>12</strong><span>Years shaping brands</span></div><div><strong>18</strong><span>Markets reached</span></div><div><strong>01</strong><span>Senior team, start to finish</span></div></div><div className="facts"><span><b>01</b> strategy</span><span><b>02</b> identity</span><span><b>03</b> digital</span><span><b>04</b> campaign</span></div></div>
         </section>
 
-        <section className="contact-section" data-nav="about" onPointerMove={moveGlow}><PortalField className="contact-field" /><div className="contact-beam" aria-hidden="true" /><p className="eyebrow">Have something worth making?</p><div className="contact-headline"><span>LET’S TALK ABOUT</span><strong>THE NEXT BIG THING</strong></div><div className="contact-links"><a href="mailto:hello@invicti.agency">hello@invicti.agency <i>↗</i></a><a href="#work">See the work <i>↓</i></a></div><footer><span>© {new Date().getFullYear()} INVICTI</span><span>Manila · Philippines</span><a href="#intro">Back to top ↑</a></footer></section>
+        <section className="contact-section" data-nav="about" onPointerMove={moveGlow}>
+          <div className="section-fade-top" aria-hidden="true" />
+          <PortalField className="contact-field" /><div className="contact-beam" aria-hidden="true" />
+          <Reveal><p className="eyebrow">Have something worth making?</p></Reveal>
+          <div className="contact-headline"><Reveal><span>LET’S TALK ABOUT</span></Reveal><Reveal delay={150}><strong>THE NEXT BIG THING</strong></Reveal></div>
+          <div className="contact-links"><a href="mailto:hello@invicti.agency">hello@invicti.agency <i>↗</i></a><a href="#work">See the work <i>↓</i></a></div><footer><span>© {new Date().getFullYear()} INVICTI</span><span>Manila · Philippines</span><a href="#intro">Back to top ↑</a></footer></section>
       </main>
 
       {galleryIndex !== null && <MediaDialog index={galleryIndex} onClose={() => setGalleryIndex(null)} onChange={setGalleryIndex} />}
