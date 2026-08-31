@@ -163,7 +163,10 @@ function PortalField({ className = "" }: { className?: string }) {
 
 function ValidationLab() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const dragRef = useRef<{ index: number; offsetX: number; offsetY: number } | null>(null);
+  const moveFrameRef = useRef<number | null>(null);
+  const pendingMoveRef = useRef<{ index: number; x: number; y: number } | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
   const [items, setItems] = useState([
     { label: "CLARITY", x: 19, y: 30, rotate: -8, style: "solid" },
@@ -176,18 +179,67 @@ function ValidationLab() {
   const moveItem = (index: number, x: number, y: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setItems((previous) => previous.map((item) => ({ ...item })).map((item, itemIndex, next) => {
-      if (itemIndex === index) return { ...item, x: Math.max(8, Math.min(92, x)), y: Math.max(12, Math.min(88, y)) };
-      const dx = (item.x - x) * rect.width / 100, dy = (item.y - y) * rect.height / 100;
-      const distance = Math.max(1, Math.hypot(dx, dy)), threshold = 145;
-      if (distance < threshold) {
-        const push = (threshold - distance) * 0.62;
-        next[itemIndex].x = Math.max(8, Math.min(92, item.x + (dx / distance) * push / rect.width * 100));
-        next[itemIndex].y = Math.max(12, Math.min(88, item.y + (dy / distance) * push / rect.height * 100));
+    const sizes = itemRefs.current.map((element) => {
+      const bounds = element?.getBoundingClientRect();
+      return { width: bounds?.width ?? 190, height: bounds?.height ?? 96 };
+    });
+    const clampItem = (itemIndex: number, nextX: number, nextY: number) => {
+      const halfWidth = (sizes[itemIndex]?.width ?? 190) / rect.width * 50;
+      const halfHeight = (sizes[itemIndex]?.height ?? 96) / rect.height * 50;
+      return {
+        x: Math.max(halfWidth + 1.5, Math.min(98.5 - halfWidth, nextX)),
+        y: Math.max(halfHeight + 2, Math.min(98 - halfHeight, nextY)),
+      };
+    };
+
+    setItems((previous) => {
+      const next = previous.map((item) => ({ ...item }));
+      Object.assign(next[index], clampItem(index, x, y));
+
+      // A few inexpensive relaxation passes make nearby chips react immediately
+      // and allow the collision to travel through a small cluster in one frame.
+      for (let pass = 0; pass < 3; pass += 1) {
+        for (let itemIndex = 0; itemIndex < next.length; itemIndex += 1) {
+          if (itemIndex === index) continue;
+          for (let otherIndex = 0; otherIndex < next.length; otherIndex += 1) {
+            if (otherIndex === itemIndex) continue;
+            const item = next[itemIndex], other = next[otherIndex];
+            const dx = (item.x - other.x) * rect.width / 100;
+            const dy = (item.y - other.y) * rect.height / 100;
+            const requiredX = ((sizes[itemIndex]?.width ?? 190) + (sizes[otherIndex]?.width ?? 190)) * 0.5 + 12;
+            const requiredY = ((sizes[itemIndex]?.height ?? 96) + (sizes[otherIndex]?.height ?? 96)) * 0.5 + 12;
+            const overlapX = requiredX - Math.abs(dx);
+            const overlapY = requiredY - Math.abs(dy);
+            if (overlapX <= 0 || overlapY <= 0) continue;
+
+            if (overlapX < overlapY) {
+              const direction = dx === 0 ? (itemIndex % 2 ? 1 : -1) : Math.sign(dx);
+              Object.assign(item, clampItem(itemIndex, item.x + direction * overlapX * 0.92 / rect.width * 100, item.y));
+            } else {
+              const direction = dy === 0 ? (itemIndex % 2 ? 1 : -1) : Math.sign(dy);
+              Object.assign(item, clampItem(itemIndex, item.x, item.y + direction * overlapY * 0.92 / rect.height * 100));
+            }
+          }
+        }
       }
-      return next[itemIndex];
-    }));
+      return next;
+    });
   };
+
+  const scheduleMove = (index: number, x: number, y: number) => {
+    pendingMoveRef.current = { index, x, y };
+    if (moveFrameRef.current !== null) return;
+    moveFrameRef.current = window.requestAnimationFrame(() => {
+      moveFrameRef.current = null;
+      const pending = pendingMoveRef.current;
+      pendingMoveRef.current = null;
+      if (pending) moveItem(pending.index, pending.x, pending.y);
+    });
+  };
+
+  useEffect(() => () => {
+    if (moveFrameRef.current !== null) window.cancelAnimationFrame(moveFrameRef.current);
+  }, []);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>, index: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -199,16 +251,22 @@ function ValidationLab() {
   const onPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current, rect = containerRef.current?.getBoundingClientRect();
     if (!drag || !rect) return;
-    moveItem(drag.index, (event.clientX - rect.left - drag.offsetX) / rect.width * 100, (event.clientY - rect.top - drag.offsetY) / rect.height * 100);
+    scheduleMove(drag.index, (event.clientX - rect.left - drag.offsetX) / rect.width * 100, (event.clientY - rect.top - drag.offsetY) / rect.height * 100);
   };
-  const onPointerUp = () => { dragRef.current = null; setDragging(null); };
+  const onPointerUp = () => {
+    const pending = pendingMoveRef.current;
+    if (moveFrameRef.current !== null) window.cancelAnimationFrame(moveFrameRef.current);
+    moveFrameRef.current = null; pendingMoveRef.current = null;
+    if (pending) moveItem(pending.index, pending.x, pending.y);
+    dragRef.current = null; setDragging(null);
+  };
 
   return (
     <section className="validation-section" id="validation" data-nav="approach" aria-labelledby="validation-title">
       <div className="validation-head"><p className="eyebrow">Validation, not decoration</p><h2 id="validation-title">Ideas get stronger<br />when they collide.</h2><p>Drag the ingredients. The system responds—just like real strategy.</p></div>
       <div className="validation-lab" ref={containerRef}>
         <div className="lab-grid" aria-hidden="true" />
-        {items.map((item, index) => <button key={item.label} className={`lab-chip ${item.style}${dragging === index ? " dragging" : ""}`} style={{ left: `${item.x}%`, top: `${item.y}%`, transform: `translate(-50%,-50%) rotate(${item.rotate}deg)` }} onPointerDown={(event) => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onKeyDown={(event) => { const step = 3; if (event.key === "ArrowLeft") moveItem(index, item.x - step, item.y); if (event.key === "ArrowRight") moveItem(index, item.x + step, item.y); if (event.key === "ArrowUp") moveItem(index, item.x, item.y - step); if (event.key === "ArrowDown") moveItem(index, item.x, item.y + step); }}>{item.label}</button>)}
+        {items.map((item, index) => <button ref={(element) => { itemRefs.current[index] = element; }} key={item.label} className={`lab-chip ${item.style}${dragging === index ? " dragging" : ""}`} style={{ left: `${item.x}%`, top: `${item.y}%`, transform: `translate3d(-50%,-50%,0) rotate(${item.rotate}deg)` }} onPointerDown={(event) => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onKeyDown={(event) => { const step = 3; if (event.key === "ArrowLeft") moveItem(index, item.x - step, item.y); if (event.key === "ArrowRight") moveItem(index, item.x + step, item.y); if (event.key === "ArrowUp") moveItem(index, item.x, item.y - step); if (event.key === "ArrowDown") moveItem(index, item.x, item.y + step); }}>{item.label}</button>)}
         <span className="drag-hint">Drag / arrow keys</span>
       </div>
     </section>
@@ -322,8 +380,8 @@ export function Scene() {
                     width="1600"
                     height="1100"
                     alt=""
-                    loading={index < 4 ? "eager" : "lazy"}
-                    fetchPriority={index < 4 ? "high" : "auto"}
+                    loading={index < 2 ? "eager" : "lazy"}
+                    fetchPriority={index === 0 ? "high" : "auto"}
                     decoding="async"
                     style={{ objectPosition: item.position }}
                   />
