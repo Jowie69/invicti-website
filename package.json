@@ -20,5 +20,8 @@
     "three128": "npm:three@0.128.0",
     "typescript": "latest",
     "vite": "latest"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-win32-arm64-msvc": "^1.2.6"
   }
 }
