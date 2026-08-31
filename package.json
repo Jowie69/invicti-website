@@ -15,6 +15,7 @@
     "@types/react-dom": "latest",
     "@types/three": "0.128.0",
     "@vitejs/plugin-react": "latest",
+    "matter-js": "^0.20.0",
     "react": "latest",
     "react-dom": "latest",
     "three128": "npm:three@0.128.0",
@@ -23,5 +24,8 @@
   },
   "optionalDependencies": {
     "@rolldown/binding-win32-arm64-msvc": "^1.2.6"
+  },
+  "devDependencies": {
+    "@types/matter-js": "^0.20.2"
   }
 }

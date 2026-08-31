@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
+import { Bodies, Body, Composite, Constraint, Engine, Sleeping, Vector, type IBodyDefinition, type Body as MatterBody, type Constraint as MatterConstraint } from "matter-js";
 
 // Karaoke-style word-by-word text animation
 function KaraokeText({ text, className = "" }: { text: string; className?: string }) {
@@ -161,104 +162,174 @@ function PortalField({ className = "" }: { className?: string }) {
   return <canvas className={`portal-field ${className}`} ref={canvasRef} aria-hidden="true" />;
 }
 
+const labItems = [
+  { label: "CLARITY", x: 18, y: 13, rotate: -8, style: "solid" },
+  { label: "AUDIENCE", x: 48, y: 5, rotate: 6, style: "outline" },
+  { label: "CULTURE", x: 78, y: 18, rotate: -4, style: "glass" },
+  { label: "PROOF", x: 29, y: 39, rotate: 5, style: "glass" },
+  { label: "IMPACT", x: 67, y: 46, rotate: -7, style: "solid" },
+  { label: "COURAGE", x: 14, y: 62, rotate: 4, style: "outline small" },
+  { label: "CRAFT", x: 52, y: 66, rotate: -4, style: "solid small" },
+  { label: "✦", accessibleLabel: "Creative spark", x: 87, y: 60, rotate: 0, style: "glass symbol", shape: "circle" },
+] as const;
+
+type LabPhysics = {
+  engine: Engine;
+  bodies: MatterBody[];
+  dragConstraint: MatterConstraint | null;
+  width: number;
+  height: number;
+};
+
 function ValidationLab() {
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const dragRef = useRef<{ index: number; offsetX: number; offsetY: number } | null>(null);
-  const moveFrameRef = useRef<number | null>(null);
-  const pendingMoveRef = useRef<{ index: number; x: number; y: number } | null>(null);
-  const [dragging, setDragging] = useState<number | null>(null);
-  const [items, setItems] = useState([
-    { label: "CLARITY", x: 19, y: 30, rotate: -8, style: "solid" },
-    { label: "AUDIENCE", x: 49, y: 22, rotate: 6, style: "outline" },
-    { label: "CULTURE", x: 77, y: 35, rotate: -4, style: "glass" },
-    { label: "PROOF", x: 34, y: 69, rotate: 5, style: "glass" },
-    { label: "IMPACT", x: 67, y: 72, rotate: -7, style: "solid" },
-  ]);
+  const physicsRef = useRef<LabPhysics | null>(null);
+  const frameRef = useRef<number | null>(null);
+  const activePointerRef = useRef<number | null>(null);
 
-  const moveItem = (index: number, x: number, y: number) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const sizes = itemRefs.current.map((element) => {
-      const bounds = element?.getBoundingClientRect();
-      return { width: bounds?.width ?? 190, height: bounds?.height ?? 96 };
-    });
-    const clampItem = (itemIndex: number, nextX: number, nextY: number) => {
-      const halfWidth = (sizes[itemIndex]?.width ?? 190) / rect.width * 50;
-      const halfHeight = (sizes[itemIndex]?.height ?? 96) / rect.height * 50;
-      return {
-        x: Math.max(halfWidth + 1.5, Math.min(98.5 - halfWidth, nextX)),
-        y: Math.max(halfHeight + 2, Math.min(98 - halfHeight, nextY)),
-      };
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const engine = Engine.create({ enableSleeping: true });
+    engine.positionIterations = 12;
+    engine.velocityIterations = 10;
+    engine.constraintIterations = 4;
+    engine.gravity.y = reducedMotion ? 0 : 0.82;
+    let visible = false;
+    let lastTime = performance.now();
+    let resizeFrame = 0;
+
+    const buildWorld = () => {
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      if (!width || !height) return;
+      const previous = physicsRef.current;
+      const previousPositions = previous?.bodies.map((body) => ({ x: body.position.x / previous.width, y: body.position.y / previous.height }));
+      Composite.clear(engine.world, false, true);
+
+      const wall = 96;
+      Composite.add(engine.world, [
+        Bodies.rectangle(width / 2, height + wall / 2, width + wall * 2, wall, { isStatic: true }),
+        Bodies.rectangle(width / 2, -wall / 2, width + wall * 2, wall, { isStatic: true }),
+        Bodies.rectangle(-wall / 2, height / 2, wall, height + wall * 2, { isStatic: true }),
+        Bodies.rectangle(width + wall / 2, height / 2, wall, height + wall * 2, { isStatic: true }),
+      ]);
+
+      const bodies = itemRefs.current.map((element, index) => {
+        const item = labItems[index];
+        const elementWidth = element?.offsetWidth ?? 180;
+        const elementHeight = element?.offsetHeight ?? 72;
+        const saved = previousPositions?.[index];
+        const x = Math.max(elementWidth / 2 + 2, Math.min(width - elementWidth / 2 - 2, (saved?.x ?? item.x / 100) * width));
+        const y = Math.max(elementHeight / 2 + 2, Math.min(height - elementHeight / 2 - 2, (saved?.y ?? item.y / 100) * height));
+        const options: IBodyDefinition = {
+          angle: item.rotate * Math.PI / 180,
+          density: 0.0018,
+          friction: 0.18,
+          frictionStatic: 0.45,
+          frictionAir: reducedMotion ? 0.09 : 0.012,
+          restitution: 0.56,
+          sleepThreshold: 55,
+        };
+        return "shape" in item && item.shape === "circle"
+          ? Bodies.circle(x, y, elementWidth / 2, options)
+          : Bodies.rectangle(x, y, elementWidth, elementHeight, { ...options, chamfer: { radius: Math.min(elementHeight / 2, 44) } });
+      });
+      Composite.add(engine.world, bodies);
+      physicsRef.current = { engine, bodies, dragConstraint: null, width, height };
     };
 
-    setItems((previous) => {
-      const next = previous.map((item) => ({ ...item }));
-      Object.assign(next[index], clampItem(index, x, y));
-
-      // A few inexpensive relaxation passes make nearby chips react immediately
-      // and allow the collision to travel through a small cluster in one frame.
-      for (let pass = 0; pass < 3; pass += 1) {
-        for (let itemIndex = 0; itemIndex < next.length; itemIndex += 1) {
-          if (itemIndex === index) continue;
-          for (let otherIndex = 0; otherIndex < next.length; otherIndex += 1) {
-            if (otherIndex === itemIndex) continue;
-            const item = next[itemIndex], other = next[otherIndex];
-            const dx = (item.x - other.x) * rect.width / 100;
-            const dy = (item.y - other.y) * rect.height / 100;
-            const requiredX = ((sizes[itemIndex]?.width ?? 190) + (sizes[otherIndex]?.width ?? 190)) * 0.5 + 12;
-            const requiredY = ((sizes[itemIndex]?.height ?? 96) + (sizes[otherIndex]?.height ?? 96)) * 0.5 + 12;
-            const overlapX = requiredX - Math.abs(dx);
-            const overlapY = requiredY - Math.abs(dy);
-            if (overlapX <= 0 || overlapY <= 0) continue;
-
-            if (overlapX < overlapY) {
-              const direction = dx === 0 ? (itemIndex % 2 ? 1 : -1) : Math.sign(dx);
-              Object.assign(item, clampItem(itemIndex, item.x + direction * overlapX * 0.92 / rect.width * 100, item.y));
-            } else {
-              const direction = dy === 0 ? (itemIndex % 2 ? 1 : -1) : Math.sign(dy);
-              Object.assign(item, clampItem(itemIndex, item.x, item.y + direction * overlapY * 0.92 / rect.height * 100));
-            }
-          }
-        }
+    const render = (time: number) => {
+      if (visible) {
+        Engine.update(engine, Math.min(24, time - lastTime));
+        physicsRef.current?.bodies.forEach((body, index) => {
+          const element = itemRefs.current[index];
+          if (!element) return;
+          element.style.left = `${body.position.x}px`;
+          element.style.top = `${body.position.y}px`;
+          element.style.transform = `translate3d(-50%,-50%,0) rotate(${body.angle}rad)`;
+        });
       }
-      return next;
-    });
-  };
+      lastTime = time;
+      frameRef.current = window.requestAnimationFrame(render);
+    };
 
-  const scheduleMove = (index: number, x: number, y: number) => {
-    pendingMoveRef.current = { index, x, y };
-    if (moveFrameRef.current !== null) return;
-    moveFrameRef.current = window.requestAnimationFrame(() => {
-      moveFrameRef.current = null;
-      const pending = pendingMoveRef.current;
-      pendingMoveRef.current = null;
-      if (pending) moveItem(pending.index, pending.x, pending.y);
+    buildWorld();
+    const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; lastTime = performance.now(); }, { threshold: 0.05 });
+    observer.observe(container);
+    const resizeObserver = new ResizeObserver(() => {
+      window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = window.requestAnimationFrame(buildWorld);
     });
-  };
+    resizeObserver.observe(container);
+    frameRef.current = window.requestAnimationFrame(render);
 
-  useEffect(() => () => {
-    if (moveFrameRef.current !== null) window.cancelAnimationFrame(moveFrameRef.current);
+    return () => {
+      observer.disconnect();
+      resizeObserver.disconnect();
+      window.cancelAnimationFrame(resizeFrame);
+      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+      Engine.clear(engine);
+      Composite.clear(engine.world, false, true);
+      physicsRef.current = null;
+    };
   }, []);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>, index: number) => {
+    const physics = physicsRef.current;
     const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const item = items[index];
-    dragRef.current = { index, offsetX: event.clientX - (rect.left + item.x * rect.width / 100), offsetY: event.clientY - (rect.top + item.y * rect.height / 100) };
-    event.currentTarget.setPointerCapture(event.pointerId); setDragging(index);
+    const body = physics?.bodies[index];
+    if (!physics || !rect || !body) return;
+    event.preventDefault();
+    activePointerRef.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.classList.add("dragging");
+    Sleeping.set(body, false);
+    const worldPoint = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const pointB = Vector.rotate(Vector.sub(worldPoint, body.position), -body.angle);
+    const dragConstraint = Constraint.create({
+      pointA: worldPoint,
+      bodyB: body,
+      pointB,
+      stiffness: 0.22,
+      damping: 0.12,
+      length: 0,
+    });
+    physics.dragConstraint = dragConstraint;
+    Composite.add(physics.engine.world, dragConstraint);
   };
+
   const onPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const drag = dragRef.current, rect = containerRef.current?.getBoundingClientRect();
-    if (!drag || !rect) return;
-    scheduleMove(drag.index, (event.clientX - rect.left - drag.offsetX) / rect.width * 100, (event.clientY - rect.top - drag.offsetY) / rect.height * 100);
+    const physics = physicsRef.current;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!physics?.dragConstraint || !rect || activePointerRef.current !== event.pointerId) return;
+    event.preventDefault();
+    physics.dragConstraint.pointA.x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+    physics.dragConstraint.pointA.y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
   };
-  const onPointerUp = () => {
-    const pending = pendingMoveRef.current;
-    if (moveFrameRef.current !== null) window.cancelAnimationFrame(moveFrameRef.current);
-    moveFrameRef.current = null; pendingMoveRef.current = null;
-    if (pending) moveItem(pending.index, pending.x, pending.y);
-    dragRef.current = null; setDragging(null);
+
+  const onPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const physics = physicsRef.current;
+    if (physics?.dragConstraint) {
+      Composite.remove(physics.engine.world, physics.dragConstraint);
+      physics.dragConstraint = null;
+    }
+    activePointerRef.current = null;
+    event.currentTarget.classList.remove("dragging");
+  };
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const body = physicsRef.current?.bodies[index];
+    if (!body || !event.key.startsWith("Arrow")) return;
+    event.preventDefault();
+    Sleeping.set(body, false);
+    const impulse = 4.8;
+    if (event.key === "ArrowLeft") Body.setVelocity(body, { x: -impulse, y: body.velocity.y });
+    if (event.key === "ArrowRight") Body.setVelocity(body, { x: impulse, y: body.velocity.y });
+    if (event.key === "ArrowUp") Body.setVelocity(body, { x: body.velocity.x, y: -impulse });
+    if (event.key === "ArrowDown") Body.setVelocity(body, { x: body.velocity.x, y: impulse });
   };
 
   return (
@@ -266,7 +337,7 @@ function ValidationLab() {
       <div className="validation-head"><p className="eyebrow">Validation, not decoration</p><h2 id="validation-title">Ideas get stronger<br />when they collide.</h2><p>Drag the ingredients. The system responds—just like real strategy.</p></div>
       <div className="validation-lab" ref={containerRef}>
         <div className="lab-grid" aria-hidden="true" />
-        {items.map((item, index) => <button ref={(element) => { itemRefs.current[index] = element; }} key={item.label} className={`lab-chip ${item.style}${dragging === index ? " dragging" : ""}`} style={{ left: `${item.x}%`, top: `${item.y}%`, transform: `translate3d(-50%,-50%,0) rotate(${item.rotate}deg)` }} onPointerDown={(event) => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onKeyDown={(event) => { const step = 3; if (event.key === "ArrowLeft") moveItem(index, item.x - step, item.y); if (event.key === "ArrowRight") moveItem(index, item.x + step, item.y); if (event.key === "ArrowUp") moveItem(index, item.x, item.y - step); if (event.key === "ArrowDown") moveItem(index, item.x, item.y + step); }}>{item.label}</button>)}
+        {labItems.map((item, index) => <button ref={(element) => { itemRefs.current[index] = element; }} key={item.label + index} type="button" aria-label={"accessibleLabel" in item ? `${item.accessibleLabel}. Drag or use arrow keys.` : `${item.label}. Drag or use arrow keys.`} className={`lab-chip ${item.style}`} style={{ left: `${item.x}%`, top: `${item.y}%`, transform: `translate3d(-50%,-50%,0) rotate(${item.rotate}deg)` }} onPointerDown={(event) => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onKeyDown={(event) => onKeyDown(event, index)}>{item.label}</button>)}
         <span className="drag-hint">Drag / arrow keys</span>
       </div>
     </section>
