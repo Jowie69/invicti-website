@@ -222,7 +222,7 @@ function MediaDialog({ index, onClose, onChange }: { index: number; onClose: () 
       <button className="dialog-close" onClick={onClose} aria-label="Close gallery">×</button>
       <button className="dialog-arrow previous" onClick={(event) => { event.stopPropagation(); onChange((index - 1 + galleryItems.length) % galleryItems.length); }} aria-label="Previous image">←</button>
       <figure onClick={(event) => event.stopPropagation()} style={{ "--dialog-accent": item.accent } as CSSProperties}>
-        <div className="dialog-visual"><img src={item.image} alt={`${item.title} project visual`} style={{ objectPosition: item.position }} /></div>
+        <div className="dialog-visual"><img src={item.image.replace(".jpg", "-1200.webp")} srcSet={`${item.image.replace(".jpg", "-640.webp")} 640w, ${item.image.replace(".jpg", "-1200.webp")} 1200w`} sizes="90vw" width="1600" height="1100" fetchPriority="high" decoding="async" alt={`${item.title} project visual`} style={{ objectPosition: item.position }} /></div>
         <figcaption><span>0{index + 1} / {galleryItems.length}</span><div><strong id="gallery-dialog-title">{item.title}</strong><p>{item.description}</p></div><a href={item.source} target="_blank" rel="noreferrer">{item.credit} ↗</a></figcaption>
       </figure>
       <button className="dialog-arrow next" onClick={(event) => { event.stopPropagation(); onChange((index + 1) % galleryItems.length); }} aria-label="Next image">→</button>
@@ -236,7 +236,7 @@ function CaseDialog({ project, onClose }: { project: CaseStudy; onClose: () => v
       <button className="dialog-close" onClick={onClose} aria-label="Close case study">×</button>
       <div className="case-dialog-scroll">
         <header><p className="eyebrow">Case study · {project.year}</p><h2 id="case-dialog-title">{project.title}</h2><p>{project.lead}</p></header>
-        <div className={`case-dialog-image tone-${project.tone}`}><img src={project.image} alt="" /></div>
+        <div className={`case-dialog-image tone-${project.tone}`}><img src={project.image} width="1586" height="992" decoding="async" alt="" /></div>
         <div className="case-dialog-details"><div><span>Client</span><strong>{project.client}</strong></div><div><span>Scope</span><strong>{project.services.join(" · ")}</strong></div><div><span>Outcome</span><strong>{project.result}</strong></div></div>
         <div className="case-dialog-story"><p>We began by removing category conventions and finding the one belief the brand could own. That became a focused system across message, identity and experience.</p><p>The result is designed to move: consistent enough to build recognition, flexible enough to stay surprising, and clear enough for teams to use without us in the room.</p></div>
         <a href="mailto:hello@invicti.agency?subject=Build%20something%20like%20this">Build something like this <span>↗</span></a>
@@ -247,7 +247,6 @@ function CaseDialog({ project, onClose }: { project: CaseStudy; onClose: () => v
 
 export function Scene() {
   const [active, setActive] = useState("intro");
-  const [loaded, setLoaded] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const [caseIndex, setCaseIndex] = useState(0);
   const [caseDialog, setCaseDialog] = useState<CaseStudy | null>(null);
@@ -257,7 +256,6 @@ export function Scene() {
   const project = caseStudies[caseIndex];
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setLoaded(true), 420);
     const sections = [...document.querySelectorAll<HTMLElement>("section[id], section[data-nav]")];
     const observer = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) { const target = entry.target as HTMLElement; setActive(target.dataset.nav || target.id); } }), { rootMargin: "-35% 0px -55%", threshold: 0 });
     sections.forEach((section) => observer.observe(section));
@@ -281,7 +279,7 @@ export function Scene() {
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
-    return () => { window.clearTimeout(timer); observer.disconnect(); window.removeEventListener("scroll", onScroll); };
+    return () => { observer.disconnect(); window.removeEventListener("scroll", onScroll); };
   }, []);
 
   useEffect(() => {
@@ -303,7 +301,7 @@ export function Scene() {
   };
 
   return (
-    <div className={`site-shell${loaded ? " is-loaded" : ""}`}>
+    <div className="site-shell">
       <div className="noise" aria-hidden="true" />
       <header className="site-header">
         <a className="wordmark" href="#intro" aria-label="INVICTI home">INVICTI<span>®</span></a>
@@ -317,7 +315,18 @@ export function Scene() {
             <div className="project-wall" aria-label="Our project capabilities">
               {galleryItems.map((item, index) => (
                 <button className="project-tile" key={item.title} onClick={() => setGalleryIndex(index)} aria-label={`View ${item.title} project`} style={{ "--tile-accent": item.accent } as CSSProperties}>
-                  <img src={item.image} alt="" style={{ objectPosition: item.position }} />
+                  <img
+                    src={item.image.replace(".jpg", "-640.webp")}
+                    srcSet={`${item.image.replace(".jpg", "-640.webp")} 640w, ${item.image.replace(".jpg", "-1200.webp")} 1200w`}
+                    sizes="(max-width: 760px) 45vw, 25vw"
+                    width="1600"
+                    height="1100"
+                    alt=""
+                    loading="eager"
+                    fetchPriority={index < 4 ? "high" : "auto"}
+                    decoding="async"
+                    style={{ objectPosition: item.position }}
+                  />
                   <span className="tile-number">{String(index + 1).padStart(2, "0")}</span>
                   <span className="tile-copy"><strong>{item.title}</strong><small>{item.description}</small><i>View project ↗</i></span>
                 </button>
@@ -345,9 +354,9 @@ export function Scene() {
           <div className="section-fade-top" aria-hidden="true" />
           <div className="work-head"><Reveal><p className="eyebrow">Selected work · 2024—26</p></Reveal><Reveal delay={80}><h2>BUILT TO<br />BE FELT.</h2></Reveal><Reveal delay={160}><p>Five collaborations. One standard: useful work with a pulse.</p></Reveal></div>
           <div className="case-carousel" aria-roledescription="carousel" aria-label="Selected case studies" tabIndex={0} onKeyDown={(event) => { if (event.key === "ArrowLeft") changeCase(caseIndex - 1); if (event.key === "ArrowRight") changeCase(caseIndex + 1); }} onPointerDown={(event) => { swipeStart.current = event.clientX; }} onPointerUp={(event) => { if (swipeStart.current === null) return; const delta = event.clientX - swipeStart.current; if (Math.abs(delta) > 45) changeCase(caseIndex + (delta < 0 ? 1 : -1)); swipeStart.current = null; }}>
-            <button className="case-peek previous" onClick={() => changeCase(caseIndex - 1)} aria-label="Previous case study"><img src={caseStudies[(caseIndex - 1 + caseStudies.length) % caseStudies.length].image} alt="" /><span>←</span></button>
-            <article className={`case-card tone-${project.tone}`} key={project.title} aria-live="polite"><div className="case-copy"><div className="case-client"><span>{project.client}</span><b>{project.year}</b></div><h3>{project.title}</h3><p>{project.lead}</p><div className="case-services">{project.services.map((service) => <span key={service}>{service}</span>)}</div><button className="button case-button" onClick={() => setCaseDialog(project)}>View case study <span>↗</span></button></div><div className="case-image"><img src={project.image} alt={`${project.title} project artwork`} /><strong>{project.result}</strong></div></article>
-            <button className="case-peek next" onClick={() => changeCase(caseIndex + 1)} aria-label="Next case study"><img src={caseStudies[(caseIndex + 1) % caseStudies.length].image} alt="" /><span>→</span></button>
+            <button className="case-peek previous" onClick={() => changeCase(caseIndex - 1)} aria-label="Previous case study"><img src={caseStudies[(caseIndex - 1 + caseStudies.length) % caseStudies.length].image} width="1586" height="992" loading="lazy" decoding="async" alt="" /><span>←</span></button>
+            <article className={`case-card tone-${project.tone}`} key={project.title} aria-live="polite"><div className="case-copy"><div className="case-client"><span>{project.client}</span><b>{project.year}</b></div><h3>{project.title}</h3><p>{project.lead}</p><div className="case-services">{project.services.map((service) => <span key={service}>{service}</span>)}</div><button className="button case-button" onClick={() => setCaseDialog(project)}>View case study <span>↗</span></button></div><div className="case-image"><img src={project.image} width="1586" height="992" loading="lazy" decoding="async" alt={`${project.title} project artwork`} /><strong>{project.result}</strong></div></article>
+            <button className="case-peek next" onClick={() => changeCase(caseIndex + 1)} aria-label="Next case study"><img src={caseStudies[(caseIndex + 1) % caseStudies.length].image} width="1586" height="992" loading="lazy" decoding="async" alt="" /><span>→</span></button>
           </div>
           <div className="case-controls"><span>0{caseIndex + 1} / 0{caseStudies.length}</span><div>{caseStudies.map((item, index) => <button key={item.title} className={index === caseIndex ? "active" : ""} onClick={() => setCaseIndex(index)} aria-label={`Show ${item.title}`} />)}</div><p>Drag, swipe or use arrow keys</p></div>
         </section>
