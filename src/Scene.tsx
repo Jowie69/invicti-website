@@ -39,6 +39,24 @@ const galleryItems = [
   { image: "/images/project-gallery/seo.jpg", title: "SEO", description: "Search strategies designed for visibility, authority and growth.", credit: "Resource Database / Unsplash", source: "https://unsplash.com/photos/a-laptop-computer-with-the-word-search-on-it-U7Y4Q3jW-0g", accent: "#81c7ff", position: "50% 52%" },
 ];
 
+function KaraokeText({ as: Tag = "h2", text, className = "", tone = "light", id }: { as?: "h2" | "p" | "span" | "strong" | "blockquote"; text: string; className?: string; tone?: "light" | "ink"; id?: string }) {
+  const lines = text.split("\n");
+  let wordIndex = 0;
+  return (
+    <Tag className={`karaoke-text ${className}`} data-karaoke data-karaoke-tone={tone} id={id}>
+      {lines.map((line, lineIndex) => (
+        <span className="karaoke-line" key={`${line}-${lineIndex}`}>
+          {line.split(" ").map((word) => {
+            const index = wordIndex++;
+            return <span className="karaoke-word" data-karaoke-word key={`${word}-${index}`}>{word}</span>;
+          })}
+          {lineIndex < lines.length - 1 && <br />}
+        </span>
+      ))}
+    </Tag>
+  );
+}
+
 function PortalField({ className = "" }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -141,7 +159,7 @@ function ValidationLab() {
 
   return (
     <section className="validation-section" id="validation" data-nav="approach" aria-labelledby="validation-title">
-      <div className="validation-head"><p className="eyebrow">Validation, not decoration</p><h2 id="validation-title">Ideas get stronger<br />when they collide.</h2><p>Drag the ingredients. The system responds—just like real strategy.</p></div>
+      <div className="validation-head"><p className="eyebrow">Validation, not decoration</p><KaraokeText id="validation-title" text={"Ideas get stronger\nwhen they collide."} /><p>Drag the ingredients. The system responds—just like real strategy.</p></div>
       <div className="validation-lab" ref={containerRef}>
         <div className="lab-grid" aria-hidden="true" />
         {items.map((item, index) => <button key={item.label} className={`lab-chip ${item.style}${dragging === index ? " dragging" : ""}`} style={{ left: `${item.x}%`, top: `${item.y}%`, transform: `translate(-50%,-50%) rotate(${item.rotate}deg)` }} onPointerDown={(event) => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onKeyDown={(event) => { const step = 3; if (event.key === "ArrowLeft") moveItem(index, item.x - step, item.y); if (event.key === "ArrowRight") moveItem(index, item.x + step, item.y); if (event.key === "ArrowUp") moveItem(index, item.x, item.y - step); if (event.key === "ArrowDown") moveItem(index, item.x, item.y + step); }}>{item.label}</button>)}
@@ -211,7 +229,23 @@ export function Scene() {
           const distance = Math.max(1, rect.height - window.innerHeight);
           const progress = Math.max(0, Math.min(1, -rect.top / distance));
           hero.style.setProperty("--gallery-progress", progress.toFixed(4));
+          hero.style.setProperty("--hero-fade", Math.max(0, Math.min(1, (progress - 0.68) / 0.32)).toFixed(4));
         }
+        document.querySelectorAll<HTMLElement>("[data-karaoke]").forEach((element) => {
+          const rect = element.getBoundingClientRect();
+          const start = window.innerHeight * 0.9;
+          const end = window.innerHeight * 0.3;
+          const progress = Math.max(0, Math.min(1, (start - rect.top) / (start - end)));
+          const words = [...element.querySelectorAll<HTMLElement>("[data-karaoke-word]")];
+          const ink = element.dataset.karaokeTone === "ink";
+          words.forEach((word, index) => {
+            const reveal = Math.max(0, Math.min(1, progress * (words.length + 2.4) - index));
+            word.style.opacity = String(0.2 + reveal * 0.8);
+            word.style.transform = `translate3d(0, ${(1 - reveal) * 0.72}em, 0)`;
+            word.style.filter = `blur(${(1 - reveal) * 5}px)`;
+            word.style.color = ink ? `rgba(5,5,5,${0.16 + reveal * 0.84})` : `rgba(255,255,255,${0.14 + reveal * 0.86})`;
+          });
+        });
         ticking = false;
       });
     };
@@ -265,17 +299,17 @@ export function Scene() {
           </div>
         </section>
 
-        <section className="manifesto" id="approach"><PortalField /><p className="eyebrow">Our conviction</p><h2>Safe work<br />is invisible.</h2><p className="manifesto-copy">We turn sharp strategy into identities, campaigns and digital experiences that refuse to blend in.</p><div className="orbit-label orbit-one">CLARITY</div><div className="orbit-label orbit-two">COURAGE</div><div className="orbit-label orbit-three">CRAFT</div></section>
+        <section className="manifesto" id="approach"><PortalField /><p className="eyebrow">Our conviction</p><KaraokeText text={"Safe work\nis invisible."} /><KaraokeText as="p" className="manifesto-copy" text="We turn sharp strategy into identities, campaigns and digital experiences that refuse to blend in." /><div className="orbit-label orbit-one">CLARITY</div><div className="orbit-label orbit-two">COURAGE</div><div className="orbit-label orbit-three">CRAFT</div></section>
 
         <section className={`services-section service-active-${hoveredService}`} id="services" data-nav="approach" onPointerMove={moveGlow}>
-          <div className="service-aura" aria-hidden="true" /><div className="section-intro"><p className="eyebrow">How we move</p><h2>From first truth<br />to full impact.</h2></div>
+          <div className="service-aura" aria-hidden="true" /><div className="section-intro"><p className="eyebrow">How we move</p><KaraokeText text={"From first truth\nto full impact."} tone="ink" /></div>
           <div className="service-layout"><div className="service-visual" aria-hidden="true"><span>0{hoveredService + 1}</span><strong>{services[hoveredService][1]}</strong><i /></div><div className="service-list">{services.map(([number, title, copy], index) => <article className={`service-row${hoveredService === index ? " active" : ""}`} key={title} onPointerEnter={() => setHoveredService(index)}><span>{number}</span><h3>{title}</h3><p>{copy}</p><i>↗</i></article>)}</div></div>
         </section>
 
         <ValidationLab />
 
         <section className="work-section" id="work">
-          <div className="work-head"><p className="eyebrow">Selected work · 2024—26</p><h2>BUILT TO<br />BE FELT.</h2><p>Five collaborations. One standard: useful work with a pulse.</p></div>
+          <div className="work-head"><p className="eyebrow">Selected work · 2024—26</p><KaraokeText text={"BUILT TO\nBE FELT."} /><p>Five collaborations. One standard: useful work with a pulse.</p></div>
           <div className="case-carousel" aria-roledescription="carousel" aria-label="Selected case studies" tabIndex={0} onKeyDown={(event) => { if (event.key === "ArrowLeft") changeCase(caseIndex - 1); if (event.key === "ArrowRight") changeCase(caseIndex + 1); }} onPointerDown={(event) => { swipeStart.current = event.clientX; }} onPointerUp={(event) => { if (swipeStart.current === null) return; const delta = event.clientX - swipeStart.current; if (Math.abs(delta) > 45) changeCase(caseIndex + (delta < 0 ? 1 : -1)); swipeStart.current = null; }}>
             <button className="case-peek previous" onClick={() => changeCase(caseIndex - 1)} aria-label="Previous case study"><img src={caseStudies[(caseIndex - 1 + caseStudies.length) % caseStudies.length].image} alt="" /><span>←</span></button>
             <article className={`case-card tone-${project.tone}`} key={project.title} aria-live="polite"><div className="case-copy"><div className="case-client"><span>{project.client}</span><b>{project.year}</b></div><h3>{project.title}</h3><p>{project.lead}</p><div className="case-services">{project.services.map((service) => <span key={service}>{service}</span>)}</div><button className="button case-button" onClick={() => setCaseDialog(project)}>View case study <span>↗</span></button></div><div className="case-image"><img src={project.image} alt={`${project.title} project artwork`} /><strong>{project.result}</strong></div></article>
@@ -286,10 +320,10 @@ export function Scene() {
 
         <section className="about-section" id="about">
           <div className="about-sticky"><p className="eyebrow">About INVICTI</p><h2>SMALL TEAM.<br />BIG NERVE.</h2><div className="about-mark">I<span>+</span></div></div>
-          <div className="about-copy"><p>INVICTI is an independent creative agency for leaders who would rather define the category than decorate it.</p><p>We stay senior, curious and close to the work—from the first difficult question to the final moving pixel.</p><blockquote>“Unconquered” is not an aesthetic. It is the confidence to make the clearest choice, even when it is not the safest one.</blockquote><div className="about-stats"><div><strong>12</strong><span>Years shaping brands</span></div><div><strong>18</strong><span>Markets reached</span></div><div><strong>01</strong><span>Senior team, start to finish</span></div></div><div className="facts"><span><b>01</b> strategy</span><span><b>02</b> identity</span><span><b>03</b> digital</span><span><b>04</b> campaign</span></div></div>
+          <div className="about-copy"><KaraokeText as="p" text="INVICTI is an independent creative agency for leaders who would rather define the category than decorate it." tone="ink" /><p>We stay senior, curious and close to the work—from the first difficult question to the final moving pixel.</p><KaraokeText as="blockquote" text="“Unconquered” is not an aesthetic. It is the confidence to make the clearest choice, even when it is not the safest one." tone="ink" /><div className="about-stats"><div><strong>12</strong><span>Years shaping brands</span></div><div><strong>18</strong><span>Markets reached</span></div><div><strong>01</strong><span>Senior team, start to finish</span></div></div><div className="facts"><span><b>01</b> strategy</span><span><b>02</b> identity</span><span><b>03</b> digital</span><span><b>04</b> campaign</span></div></div>
         </section>
 
-        <section className="contact-section" data-nav="about" onPointerMove={moveGlow}><PortalField className="contact-field" /><div className="contact-beam" aria-hidden="true" /><p className="eyebrow">Have something worth making?</p><div className="contact-headline"><span>LET’S TALK ABOUT</span><strong>THE NEXT BIG THING</strong></div><div className="contact-links"><a href="mailto:hello@invicti.agency">hello@invicti.agency <i>↗</i></a><a href="#work">See the work <i>↓</i></a></div><footer><span>© {new Date().getFullYear()} INVICTI</span><span>Manila · Philippines</span><a href="#intro">Back to top ↑</a></footer></section>
+        <section className="contact-section" data-nav="about" onPointerMove={moveGlow}><PortalField className="contact-field" /><div className="contact-beam" aria-hidden="true" /><p className="eyebrow">Have something worth making?</p><div className="contact-headline"><KaraokeText as="span" text="LET’S TALK ABOUT" /><KaraokeText as="strong" text="THE NEXT BIG THING" /></div><div className="contact-links"><a href="mailto:hello@invicti.agency">hello@invicti.agency <i>↗</i></a><a href="#work">See the work <i>↓</i></a></div><footer><span>© {new Date().getFullYear()} INVICTI</span><span>Manila · Philippines</span><a href="#intro">Back to top ↑</a></footer></section>
       </main>
 
       {galleryIndex !== null && <MediaDialog index={galleryIndex} onClose={() => setGalleryIndex(null)} onChange={setGalleryIndex} />}
