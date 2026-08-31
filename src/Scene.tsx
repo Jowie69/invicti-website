@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type P
 import { Bodies, Body, Composite, Constraint, Engine, Sleeping, Vector, type IBodyDefinition, type Body as MatterBody, type Constraint as MatterConstraint } from "matter-js";
 
 const BOOKING_LINK = "mailto:hello@invicti.agency?subject=Discovery%20Call%20Request";
+const compactImage = (source: string) => source.replace("-1200.webp", "-640.webp");
 
 type ResultCard = {
   label: string;
@@ -90,32 +91,41 @@ const faqs = [
 
 function KaraokeText({ text, className = "" }: { text: string; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
+    const wordElements = Array.from(element.querySelectorAll<HTMLElement>(".karaoke-word"));
     let frame = 0;
     const update = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
         const rect = element.getBoundingClientRect();
-        const start = window.innerHeight * 0.88;
-        const end = window.innerHeight * 0.22;
-        setProgress(Math.max(0, Math.min(1, (start - rect.top) / (start - end))));
+        const elementCenter = rect.top + rect.height / 2;
+        const start = window.innerHeight * 0.96;
+        const end = window.innerHeight * 0.7;
+        const progress = Math.max(0, Math.min(1, (start - elementCenter) / (start - end)));
+        wordElements.forEach((word, index) => {
+          const wordProgress = Math.max(0, Math.min(1, (progress - index / wordElements.length) * wordElements.length));
+          word.style.setProperty("--wp", `${wordProgress}`);
+        });
       });
     };
     window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update, { passive: true });
     update();
-    return () => { window.cancelAnimationFrame(frame); window.removeEventListener("scroll", update); };
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
   }, []);
 
   const words = text.split(" ");
   return (
     <span ref={ref} className={`karaoke-text ${className}`} aria-label={text}>
       {words.map((word, index) => {
-        const wordProgress = Math.max(0, Math.min(1, (progress - index / words.length) * words.length));
-        return <span className="karaoke-word" key={`${word}-${index}`} style={{ "--wp": wordProgress } as CSSProperties}>{word}{index < words.length - 1 ? " " : ""}</span>;
+        return <span className="karaoke-word" key={`${word}-${index}`} style={{ "--wp": 0 } as CSSProperties}>{word}{index < words.length - 1 ? " " : ""}</span>;
       })}
     </span>
   );
@@ -157,17 +167,17 @@ function PortalField({ className = "" }: { className?: string }) {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
-    let frame = 0, width = 0, height = 0, dpr = 1;
+    let frame = 0, width = 0, height = 0, dpr = 1, visible = false, lastDraw = 0;
     let mouseX = 0, mouseY = 0, targetX = 0, targetY = 0;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const stars = Array.from({ length: 92 }, (_, index) => ({
-      angle: (index / 92) * Math.PI * 2 + Math.sin(index * 8.73),
+    const stars = Array.from({ length: 58 }, (_, index) => ({
+      angle: (index / 58) * Math.PI * 2 + Math.sin(index * 8.73),
       radius: 0.14 + ((index * 37) % 82) / 100,
       size: 0.45 + ((index * 19) % 13) / 8,
       speed: 0.3 + ((index * 11) % 17) / 20,
     }));
     const resize = () => {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dpr = Math.min(window.devicePixelRatio || 1, 1.35);
       width = canvas.clientWidth;
       height = canvas.clientHeight;
       canvas.width = width * dpr;
@@ -179,6 +189,12 @@ function PortalField({ className = "" }: { className?: string }) {
       targetY = (event.clientY / window.innerHeight - 0.5) * 68;
     };
     const draw = (time: number) => {
+      if (!visible) return;
+      if (!reducedMotion && time - lastDraw < 33) {
+        frame = window.requestAnimationFrame(draw);
+        return;
+      }
+      lastDraw = time;
       ctx.clearRect(0, 0, width, height);
       const t = reducedMotion ? 0 : time * 0.0002;
       mouseX += (targetX - mouseX) * 0.055;
@@ -214,13 +230,23 @@ function PortalField({ className = "" }: { className?: string }) {
         ctx.fill();
       });
       ctx.restore();
-      frame = window.requestAnimationFrame(draw);
+      if (!reducedMotion) frame = window.requestAnimationFrame(draw);
     };
     resize();
     window.addEventListener("resize", resize);
     window.addEventListener("pointermove", pointer, { passive: true });
-    frame = window.requestAnimationFrame(draw);
-    return () => { window.cancelAnimationFrame(frame); window.removeEventListener("resize", resize); window.removeEventListener("pointermove", pointer); };
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      window.cancelAnimationFrame(frame);
+      if (visible) frame = window.requestAnimationFrame(draw);
+    }, { rootMargin: "120px 0px", threshold: 0.01 });
+    observer.observe(canvas);
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("pointermove", pointer);
+    };
   }, []);
 
   return <canvas className={`portal-field ${className}`} ref={canvasRef} aria-hidden="true" />;
@@ -317,26 +343,32 @@ function InteractiveSystemLab() {
     };
 
     const render = (time: number) => {
-      if (visible) {
-        Engine.update(engine, Math.min(16.667, time - lastTime));
-        physicsRef.current?.bodies.forEach((body, index) => {
-          const element = itemRefs.current[index];
-          if (!element) return;
-          element.style.left = `${body.position.x}px`;
-          element.style.top = `${body.position.y}px`;
-          element.style.transform = `translate3d(-50%,-50%,0) rotate(${body.angle}rad)`;
-        });
-      }
+      if (!visible) { frameRef.current = null; return; }
+      Engine.update(engine, Math.min(16.667, time - lastTime));
+      physicsRef.current?.bodies.forEach((body, index) => {
+        const element = itemRefs.current[index];
+        if (!element) return;
+        element.style.left = `${body.position.x}px`;
+        element.style.top = `${body.position.y}px`;
+        element.style.transform = `translate3d(-50%,-50%,0) rotate(${body.angle}rad)`;
+      });
       lastTime = time;
       frameRef.current = window.requestAnimationFrame(render);
     };
 
     buildWorld();
-    const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; lastTime = performance.now(); }, { threshold: 0.05 });
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      lastTime = performance.now();
+      if (visible && frameRef.current === null) frameRef.current = window.requestAnimationFrame(render);
+      if (!visible && frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+    }, { threshold: 0.05 });
     observer.observe(container);
     const resizeObserver = new ResizeObserver(() => { window.cancelAnimationFrame(resizeFrame); resizeFrame = window.requestAnimationFrame(buildWorld); });
     resizeObserver.observe(container);
-    frameRef.current = window.requestAnimationFrame(render);
     return () => {
       observer.disconnect();
       resizeObserver.disconnect();
@@ -409,8 +441,10 @@ function ResultsCarousel() {
     const track = trackRef.current;
     if (!track || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let frame = 0;
+    let visible = false;
     let previousTime = performance.now();
     const animate = (time: number) => {
+      if (!visible) return;
       const delta = Math.min(32, time - previousTime);
       previousTime = time;
       if (!pausedRef.current) {
@@ -420,8 +454,16 @@ function ResultsCarousel() {
       }
       frame = window.requestAnimationFrame(animate);
     };
-    frame = window.requestAnimationFrame(animate);
-    return () => window.cancelAnimationFrame(frame);
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      window.cancelAnimationFrame(frame);
+      if (visible) {
+        previousTime = performance.now();
+        frame = window.requestAnimationFrame(animate);
+      }
+    }, { rootMargin: "120px 0px", threshold: 0.01 });
+    observer.observe(track);
+    return () => { observer.disconnect(); window.cancelAnimationFrame(frame); };
   }, []);
 
   const move = (direction: number) => {
@@ -437,7 +479,7 @@ function ResultsCarousel() {
       <div className="results-track" ref={trackRef} onPointerEnter={() => { pausedRef.current = true; }} onPointerLeave={() => { pausedRef.current = false; }} onFocus={() => { pausedRef.current = true; }} onBlur={() => { pausedRef.current = false; }} aria-label="Continuously moving client proof carousel. Hover or focus to pause.">
         {results.concat(results).map((result, index) => (
           <article className="result-card" key={`${result.label}-${index}`} aria-hidden={index >= results.length}>
-            <div className="result-image"><img src={result.image} alt="" loading={index > 1 ? "lazy" : "eager"} /><span>{result.label}</span></div>
+            <div className="result-image"><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 74vw, 34vw" alt="" loading="lazy" decoding="async" /><span>{result.label}</span></div>
             <div className="result-copy">
               <p>{result.category}</p>
               <div className="before-after"><span>{result.before}<small>Baseline screenshot</small></span><b>→</b><span>{result.after}<small>Verified result</small></span></div>
@@ -464,6 +506,7 @@ export function Scene() {
 
   useEffect(() => {
     const revealTargets = document.querySelectorAll<HTMLElement>(".section-heading, .process-copy, .process-screen, .case-panel, .testimonial-strip blockquote, .proof-wall article, .lead-intro, .metrics-grid article, .pipeline-card, .price-card, .faq-sticky, .faq-list article, .book-section > *:not(.book-orbit):not(.book-field)");
+    const parallaxTargets = document.querySelectorAll<HTMLElement>("[data-parallax]");
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) entry.target.classList.add("motion-visible");
@@ -478,7 +521,7 @@ export function Scene() {
       window.requestAnimationFrame(() => {
         const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
         document.documentElement.style.setProperty("--page-progress", `${Math.min(1, window.scrollY / maxScroll)}`);
-        document.querySelectorAll<HTMLElement>("[data-parallax]").forEach((element) => {
+        parallaxTargets.forEach((element) => {
           const rect = element.getBoundingClientRect();
           const centerDelta = rect.top + rect.height / 2 - window.innerHeight / 2;
           const speed = Number(element.dataset.parallax || 0.035);
@@ -513,7 +556,7 @@ export function Scene() {
         <section className="hero" id="top">
           <div className="hero-media" aria-hidden="true">
             <PortalField className="hero-field" />
-            {results.slice(0, 5).map((result, index) => <div className={`hero-tile tile-${index + 1}`} data-parallax={0.018 + index * 0.008} key={result.label}><img src={result.image} alt="" /></div>)}
+            {results.slice(0, 5).map((result, index) => <div className={`hero-tile tile-${index + 1}`} data-parallax={0.018 + index * 0.008} key={result.label}><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 52vw, 24vw" alt="" loading={index === 0 ? "eager" : "lazy"} decoding="async" fetchPriority={index === 0 ? "high" : "low"} /></div>)}
             <div className="hero-glow" />
           </div>
           <div className="hero-copy">
@@ -573,7 +616,7 @@ export function Scene() {
           <div className="process-visual">
             <div className="process-screen">
               <div className="screen-top"><span>INVICTI / CONTENT OS</span><i>Cycle 01 · Active</i></div>
-              <div className="screen-preview"><img src="/images/project-gallery/video-editing-1200.webp" alt="A video editing workspace used as a process preview" loading="lazy" data-parallax="0.02" /><span>04: Edit in progress</span></div>
+              <div className="screen-preview"><img src="/images/project-gallery/video-editing-640.webp" srcSet="/images/project-gallery/video-editing-640.webp 640w, /images/project-gallery/video-editing-1200.webp 1200w" sizes="(max-width: 760px) calc(100vw - 54px), 56vw" alt="A video editing workspace used as a process preview" loading="lazy" decoding="async" data-parallax="0.02" /><span>04: Edit in progress</span></div>
               <div className="screen-timeline">{process.map((step, index) => <span key={step.number} style={{ width: `${12 + index * 3}%` }} />)}</div>
             </div>
             <div className="process-steps">{process.map((step) => <article key={step.number}><span>{step.number}</span><div><h3>{step.title}</h3><p>{step.copy}</p></div></article>)}</div>
@@ -583,7 +626,7 @@ export function Scene() {
         <section className="more-results-section" id="more-results">
           <div className="section-heading split-heading"><div><p className="eyebrow">06 · More before & after results</p><KineticHeading lines={["THE RECEIPTS", "KEEP GOING."]} /></div><div><p><KaraokeText text="Use this proof wall for the volume the brief calls for—content performance, profile growth, feed transformations and direct client messages." /></p><BookCall /></div></div>
           <div className="proof-wall">
-            {results.concat(results.slice(0, 2)).map((result, index) => <article key={`${result.label}-${index}`}><img src={result.image} alt="" loading="lazy" data-parallax={0.02 + (index % 3) * 0.008} /><div><span>{String(index + 1).padStart(2, "0")}</span><b>{index % 2 === 0 ? "Before → after" : "Client result"}</b><small>Verified screenshot slot</small></div></article>)}
+            {results.concat(results.slice(0, 2)).map((result, index) => <article key={`${result.label}-${index}`}><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 48vw, 25vw" alt="" loading="lazy" decoding="async" data-parallax={0.02 + (index % 3) * 0.008} /><div><span>{String(index + 1).padStart(2, "0")}</span><b>{index % 2 === 0 ? "Before → after" : "Client result"}</b><small>Verified screenshot slot</small></div></article>)}
           </div>
         </section>
 
