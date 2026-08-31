@@ -318,7 +318,7 @@ function InteractiveSystemLab() {
 
     const render = (time: number) => {
       if (visible) {
-        Engine.update(engine, Math.min(24, time - lastTime));
+        Engine.update(engine, Math.min(16.667, time - lastTime));
         physicsRef.current?.bodies.forEach((body, index) => {
           const element = itemRefs.current[index];
           if (!element) return;
