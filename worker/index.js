@@ -59,6 +59,9 @@ const hasSupabaseAdminSession = async (request, environment) => {
 
 const handleApi = async (request, environment, url) => {
   if (url.pathname === "/api/admin/login" && request.method === "POST") {
+    if (await getConnection(environment)) {
+      return json({ error: "Temporary login is disabled. Use your Supabase admin account." }, { status: 410 });
+    }
     const body = await request.json().catch(() => ({}));
     if (body?.username !== TEMP_USERNAME || body?.password !== TEMP_PASSWORD) {
       return json({ error: "Invalid username or password." }, { status: 401 });
@@ -78,7 +81,8 @@ const handleApi = async (request, environment, url) => {
   }
 
   if (url.pathname === "/api/connection" && request.method === "POST") {
-    const authorized = await hasTemporarySession(request) || await hasSupabaseAdminSession(request, environment);
+    const currentConnection = await getConnection(environment);
+    const authorized = currentConnection ? await hasSupabaseAdminSession(request, environment) : await hasTemporarySession(request);
     if (!authorized) return json({ error: "Admin sign-in required." }, { status: 401 });
     const connection = normalizeConnection(await request.json().catch(() => null));
     if (!connection) return json({ error: "Use a valid HTTPS Project URL and publishable key. Secret/service-role keys are not allowed." }, { status: 400 });
