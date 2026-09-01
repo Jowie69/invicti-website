@@ -268,6 +268,17 @@ function ConnectionPanel({ connection, onConnected }: { connection: CmsConnectio
 
   useEffect(() => { setProjectUrl(connection?.projectUrl || ""); setPublishableKey(connection?.publishableKey || ""); }, [connection]);
 
+  const downloadConnectionConfig = (saved: CmsConnection) => {
+    const cfg = { projectUrl: saved.projectUrl, publishableKey: saved.publishableKey };
+    const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "cms-connection.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   const connect = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -277,11 +288,13 @@ function ConnectionPanel({ connection, onConnected }: { connection: CmsConnectio
       await testConnection(candidate);
       const session = connection ? await getSupabaseSession(connection) : null;
       const saved = await saveConnection(candidate, session?.access_token);
-      setMessage("Connection verified and saved. Sign in with your Supabase admin account next.");
+      downloadConnectionConfig(saved);
+      setMessage("✅ Connection saved! Move the downloaded cms-connection.json into your public/ folder, then git push to go live globally.");
       onConnected(saved);
     } catch (caught) { setMessage(caught instanceof Error ? caught.message : "Connection failed."); }
     finally { setBusy(false); }
   };
+
 
   const downloadSql = () => {
     const anchor = document.createElement("a");

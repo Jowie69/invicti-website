@@ -28,12 +28,21 @@ export const getSupabaseClient = (connection: CmsConnection) => {
 };
 
 export async function loadConnection(): Promise<CmsConnection | null> {
-  // Check build-time env vars first (set once in Vercel dashboard → globally connected on all devices)
+  // 1. Check committed static config file (public/cms-connection.json — anon key is public-safe)
+  try {
+    const res = await fetch("/cms-connection.json", { headers: { Accept: "application/json" }, cache: "no-store" });
+    if (res.ok && isJsonResponse(res)) {
+      const cfg = await res.json() as { projectUrl?: string; publishableKey?: string };
+      if (cfg.projectUrl && cfg.publishableKey) return cfg as CmsConnection;
+    }
+  } catch { /* File not yet committed. */ }
+  // 2. Check build-time env vars (Vercel dashboard)
   const envUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   const envKey = import.meta.env.VITE_SUPABASE_KEY as string | undefined;
   if (envUrl && envKey) {
     return { projectUrl: envUrl.trim().replace(/\/$/, ""), publishableKey: envKey.trim() };
   }
+  // 3. Try Cloudflare Worker API
   try {
     const response = await fetch("/api/connection", { headers: { Accept: "application/json" } });
     if (response.ok && isJsonResponse(response)) {
@@ -41,6 +50,7 @@ export async function loadConnection(): Promise<CmsConnection | null> {
       if (payload.connection) return payload.connection;
     }
   } catch { /* Local Vite preview has no Worker API. */ }
+  // 4. Fallback to localStorage
   const saved = browserStorage()?.getItem(LOCAL_CONNECTION_KEY);
   if (!saved) return null;
   try { return JSON.parse(saved) as CmsConnection; } catch { return null; }
