@@ -1,93 +1,12 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
+import { createContext, Fragment, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Bodies, Body, Composite, Constraint, Engine, Sleeping, Vector, type IBodyDefinition, type Body as MatterBody, type Constraint as MatterConstraint } from "matter-js";
 
-const BOOKING_LINK = "mailto:hello@invicti.agency?subject=Discovery%20Call%20Request";
-const compactImage = (source: string) => source.replace("-1200.webp", "-640.webp");
+import { defaultContent, type SiteContent } from "./content";
+import { loadPublicContent } from "./public-content";
 
-type ResultCard = {
-  label: string;
-  category: string;
-  image: string;
-  before: string;
-  after: string;
-  note: string;
-};
+const compactImage = (source: string) => source.startsWith("/images/project-gallery/") ? source.replace("-1200.webp", "-640.webp") : source;
 
-const results: ResultCard[] = [
-  { label: "Proof slot 01", category: "Audience growth", image: "/images/project-gallery/content-creation-1200.webp", before: "BEFORE", after: "AFTER", note: "Add the client's verified analytics screenshots here." },
-  { label: "Proof slot 02", category: "Short-form reach", image: "/images/project-gallery/video-editing-1200.webp", before: "BEFORE", after: "AFTER", note: "Replace this visual with the approved reach comparison." },
-  { label: "Proof slot 03", category: "Lead generation", image: "/images/project-gallery/ai-automation-1200.webp", before: "BEFORE", after: "AFTER", note: "Add the verified CRM or booked-call screenshot here." },
-  { label: "Proof slot 04", category: "Content consistency", image: "/images/project-gallery/copy-writing-1200.webp", before: "BEFORE", after: "AFTER", note: "Show the old feed beside the new content system." },
-  { label: "Proof slot 05", category: "Profile conversion", image: "/images/project-gallery/seo-1200.webp", before: "BEFORE", after: "AFTER", note: "Add the approved profile visit and conversion screenshots." },
-  { label: "Proof slot 06", category: "Sales conversations", image: "/images/project-gallery/web-scraping-1200.webp", before: "BEFORE", after: "AFTER", note: "Use a redacted inbox or pipeline result screenshot." },
-];
-
-const services = [
-  { number: "01", title: "Strategy that finds the angle", copy: "We research your market, audience, offer and competitors, then turn the useful tension into a content direction your buyers can recognize." },
-  { number: "02", title: "Scripts built to hold attention", copy: "Hooks, stories, authority posts and sales-led scripts—written in your voice and mapped to the questions buyers ask before they book." },
-  { number: "03", title: "Production without the chaos", copy: "We guide filming, edit every asset, add captions and platform-native pacing, then manage feedback without drowning you in revisions." },
-  { number: "04", title: "Publishing that compounds", copy: "We upload, optimize, repurpose and report so your content keeps moving while you stay focused on delivery and sales." },
-];
-
-const process = [
-  { number: "01", title: "Research", copy: "Audience, offer, category and competitor analysis." },
-  { number: "02", title: "Script", copy: "Monthly content map, hooks, stories and conversion angles." },
-  { number: "03", title: "Film", copy: "Simple recording guidance, shot lists and batching support." },
-  { number: "04", title: "Edit", copy: "Platform-native pacing, captions, sound and visual polish." },
-  { number: "05", title: "Upload", copy: "Scheduling, metadata, captions and quality control." },
-  { number: "06", title: "Optimize", copy: "Reporting, iteration and more of what earns attention." },
-];
-
-const leadResults = [
-  { metric: "+XX", label: "qualified leads", note: "Insert verified CRM total" },
-  { metric: "XX", label: "calls booked", note: "Insert calendar screenshot" },
-  { metric: "X.X×", label: "return on content", note: "Insert source calculation" },
-  { metric: "XX%", label: "reply-to-call rate", note: "Insert verified pipeline data" },
-];
-
-const packages = [
-  {
-    name: "Grow",
-    volume: "15 shorts / month",
-    price: "$2,795",
-    description: "For founders building a consistent authority engine.",
-    features: ["Onboarding + review calls", "Research and scripting", "Editing and uploading", "7 sales-focused stories", "Weekday email support", "Monthly performance report", "Profile optimization checklist"],
-  },
-  {
-    name: "Scale",
-    volume: "20 shorts / month",
-    price: "$3,295",
-    description: "For teams ready to turn attention into pipeline.",
-    featured: true,
-    features: ["Everything in Grow", "More weekly publishing volume", "10 sales-focused stories", "Priority edit queue", "Monthly strategy workshop", "Conversion-led content testing", "Profile optimization checklist"],
-  },
-  {
-    name: "Dominate",
-    volume: "30 shorts / month",
-    price: "$4,295",
-    description: "For brands that want an always-on content department.",
-    features: ["Everything in Scale", "30 shorts every month", "15 sales-focused stories", "Multi-platform publishing", "Advanced reporting", "Fastest turnaround", "Profile optimization checklist"],
-  },
-];
-
-const faqs = [
-  ["What exactly is done for us?", "We own the content system from research and strategy through scripting, editing, uploading and reporting. You remain the subject-matter expert; we make sure the expertise consistently reaches the market."],
-  ["Who is this service best for?", "Founder-led businesses, coaches, consultants, agencies and expert brands with a proven offer who want content to support authority, inbound demand and sales conversations."],
-  ["How much time will you need from me?", "Most clients batch their recording. Expect an onboarding session, one focused filming block per cycle, and a concise review window. The exact rhythm is agreed before work begins."],
-  ["Do I need professional filming equipment?", "No. A modern phone, clear audio and good lighting are enough for most formats. We provide a practical setup and shot guide, and can work with an existing studio or production team when needed."],
-  ["Can you work with footage we already have?", "Yes. We can audit and repurpose an existing library, then identify what is missing. Footage quality and usable volume are reviewed during discovery."],
-  ["Which platforms do you manage?", "The core system is built for short-form platforms such as Instagram, TikTok, YouTube Shorts and LinkedIn. Your package and strategy determine where we publish and how each asset is adapted."],
-  ["Do you post the content for us?", "Yes, uploading and optimization are included where account access and platform permissions allow it. We use an agreed approval workflow before anything goes live."],
-  ["Can you guarantee views, followers or leads?", "No credible partner can guarantee platform distribution or revenue. We guarantee the agreed deliverables, a clear operating process and decisions grounded in performance data—not fabricated promises."],
-  ["When can we expect to see results?", "The first cycle establishes the baseline and tests angles. Meaningful patterns usually emerge over multiple publishing cycles; speed depends on your offer, audience, starting point and sales follow-up."],
-  ["How many revisions are included?", "Each package includes a defined review round for scripts and edits. We align on voice and visual rules early so feedback gets lighter over time. Additional rounds can be scoped when needed."],
-  ["Who owns the finished content?", "Once invoices are paid, you can use the approved final deliverables across your owned channels. Raw footage, project files, licensed assets and third-party materials are handled according to the final agreement."],
-  ["Is there a long-term commitment?", "We recommend enough runway to learn and improve, but the exact initial term, renewal and notice period are confirmed in your proposal before you sign."],
-  ["Are paid ads or media spend included?", "No. These packages cover the organic content system. Paid distribution, ad management, creator fees, travel and specialist production can be added as a separate scope."],
-  ["How do approvals and reporting work?", "You receive a clear review window and one place for feedback. Reporting covers output, reach, retention, engagement and conversion signals that are available and relevant to your goals."],
-  ["Can you match our existing brand voice?", "Yes. We begin with source material, interviews and examples, then build a practical voice guide. Nothing is published until the working voice and approval process are aligned."],
-  ["What happens on the discovery call?", "We review your offer, audience, current content, bottleneck and goals. If the fit is strong, we recommend a package and next steps. If it is not, we will say so plainly."],
-];
+const ContentContext = createContext<SiteContent>(defaultContent);
 
 function KaraokeText({ text, className = "" }: { text: string; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -271,20 +190,11 @@ function Reveal({ children, className = "" }: { children: ReactNode; className?:
   return <div ref={ref} className={`reveal ${className}`}>{children}</div>;
 }
 
-function BookCall({ light = false, label = "Book a call" }: { light?: boolean; label?: string }) {
-  return <a className={`cta-pill${light ? " light" : ""}`} href="#book-call">{label}<span>↗</span></a>;
+function BookCall({ light = false, label }: { light?: boolean; label?: string }) {
+  const content = useContext(ContentContext);
+  const effectiveLabel = label || content.brand.headerCta;
+  return <a className={`cta-pill${light ? " light" : ""}`} href="#book-call">{effectiveLabel}<span>↗</span></a>;
 }
-
-const systemItems = [
-  { label: "RESEARCH", x: 18, y: 14, rotate: -8, style: "solid" },
-  { label: "HOOKS", x: 48, y: 7, rotate: 6, style: "outline" },
-  { label: "STORY", x: 79, y: 18, rotate: -4, style: "glass" },
-  { label: "PROOF", x: 28, y: 42, rotate: 5, style: "glass" },
-  { label: "OFFER", x: 68, y: 47, rotate: -7, style: "solid" },
-  { label: "CTA", x: 15, y: 68, rotate: 4, style: "outline small" },
-  { label: "DATA", x: 53, y: 71, rotate: -4, style: "solid small" },
-  { label: "✦", accessibleLabel: "Content spark", x: 87, y: 68, rotate: 0, style: "glass symbol", shape: "circle" },
-] as const;
 
 type LabPhysics = {
   engine: Engine;
@@ -295,6 +205,8 @@ type LabPhysics = {
 };
 
 function InteractiveSystemLab() {
+  const content = useContext(ContentContext);
+  const systemItems = content.interactive.items;
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const physicsRef = useRef<LabPhysics | null>(null);
@@ -304,6 +216,7 @@ function InteractiveSystemLab() {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    itemRefs.current.length = systemItems.length;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const engine = Engine.create({ enableSleeping: true });
     engine.positionIterations = 12;
@@ -378,7 +291,7 @@ function InteractiveSystemLab() {
       Composite.clear(engine.world, false, true);
       physicsRef.current = null;
     };
-  }, []);
+  }, [systemItems]);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>, index: number) => {
     const physics = physicsRef.current, rect = containerRef.current?.getBoundingClientRect(), body = physics?.bodies[index];
@@ -423,17 +336,18 @@ function InteractiveSystemLab() {
 
   return (
     <section className="interactive-system-section motion-reveal" aria-labelledby="interactive-system-title">
-      <div className="interactive-system-head"><div><p className="eyebrow">Interactive content system</p><KineticHeading lines={["STRATEGY", "YOU CAN", "FEEL."]} /></div><div><p>Drag the ingredients. Every strong content engine needs all of them working together.</p><BookCall /></div></div>
+      <div className="interactive-system-head"><div><p className="eyebrow">{content.interactive.eyebrow}</p><KineticHeading lines={content.interactive.heading} /></div><div><p>{content.interactive.intro}</p><BookCall /></div></div>
       <div className="interactive-lab" ref={containerRef}>
         <div className="lab-grid" aria-hidden="true" />
         {systemItems.map((item, index) => <button ref={(element) => { itemRefs.current[index] = element; }} key={`${item.label}-${index}`} type="button" aria-label={"accessibleLabel" in item ? `${item.accessibleLabel}. Drag or use arrow keys.` : `${item.label}. Drag or use arrow keys.`} className={`lab-chip ${item.style}`} style={{ left: `${item.x}%`, top: `${item.y}%`, transform: `translate3d(-50%,-50%,0) rotate(${item.rotate}deg)` }} onPointerDown={(event) => onPointerDown(event, index)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onKeyDown={(event) => onKeyDown(event, index)}>{item.label}</button>)}
-        <span className="drag-hint">Drag / throw / use arrow keys</span>
+        <span className="drag-hint">{content.interactive.hint}</span>
       </div>
     </section>
   );
 }
 
-function ResultsCarousel() {
+function ResultsCarousel({ section }: { section: SiteContent["results"] }) {
+  const { items: results } = section;
   const trackRef = useRef<HTMLDivElement>(null);
   const pausedRef = useRef(false);
 
@@ -473,16 +387,16 @@ function ResultsCarousel() {
   return (
     <div className="results-carousel">
       <div className="carousel-toolbar">
-        <p>Swipe through the proof library</p>
+        <p>{section.carouselLabel}</p>
         <div><button type="button" onClick={() => move(-1)} aria-label="Previous result">←</button><button type="button" onClick={() => move(1)} aria-label="Next result">→</button></div>
       </div>
-      <div className="results-track" ref={trackRef} onPointerEnter={() => { pausedRef.current = true; }} onPointerLeave={() => { pausedRef.current = false; }} onFocus={() => { pausedRef.current = true; }} onBlur={() => { pausedRef.current = false; }} aria-label="Continuously moving client proof carousel. Hover or focus to pause.">
+      <div className="results-track" ref={trackRef} onPointerEnter={() => { pausedRef.current = true; }} onPointerLeave={() => { pausedRef.current = false; }} onFocus={() => { pausedRef.current = true; }} onBlur={() => { pausedRef.current = false; }} aria-label={section.carouselAria}>
         {results.concat(results).map((result, index) => (
           <article className="result-card" key={`${result.label}-${index}`} aria-hidden={index >= results.length}>
-            <div className="result-image"><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 74vw, 34vw" alt="" loading="lazy" decoding="async" /><span>{result.label}</span></div>
+            <div className="result-image"><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 74vw, 34vw" alt={result.category} loading="lazy" decoding="async" /><span>{result.label}</span></div>
             <div className="result-copy">
               <p>{result.category}</p>
-              <div className="before-after"><span>{result.before}<small>Baseline screenshot</small></span><b>→</b><span>{result.after}<small>Verified result</small></span></div>
+              <div className="before-after"><span>{result.before}<small>{section.beforeCaption}</small></span><b>→</b><span>{result.after}<small>{section.afterCaption}</small></span></div>
               <em>{result.note}</em>
             </div>
           </article>
@@ -495,6 +409,16 @@ function ResultsCarousel() {
 export function Scene() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
+  const [content, setContent] = useState<SiteContent>(defaultContent);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const loaded = await loadPublicContent();
+      if (active) setContent(loaded);
+    })();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -536,19 +460,16 @@ export function Scene() {
   }, []);
 
   return (
+    <ContentContext.Provider value={content}>
     <div className="site-shell">
       <div className="noise" aria-hidden="true" />
       <div className="scroll-progress" aria-hidden="true" />
       <header className="site-header">
-        <a className="wordmark" href="#top" aria-label="INVICTI home">INVICTI<span>®</span></a>
+        <a className="wordmark" href="#top" aria-label={`${content.brand.wordmark} home`}>{content.brand.wordmark}<span>®</span></a>
         <nav className={menuOpen ? "site-nav open" : "site-nav"} aria-label="Primary navigation">
-          <a href="#services" onClick={() => setMenuOpen(false)}>Services</a>
-          <a href="#results" onClick={() => setMenuOpen(false)}>Results</a>
-          <a href="#process" onClick={() => setMenuOpen(false)}>Process</a>
-          <a href="#pricing" onClick={() => setMenuOpen(false)}>Pricing</a>
-          <a href="#faq" onClick={() => setMenuOpen(false)}>FAQ</a>
+          {content.brand.nav.map((item) => <a key={`${item.href}-${item.label}`} href={item.href} onClick={() => setMenuOpen(false)}>{item.label}</a>)}
         </nav>
-        <a className="header-cta" href="#book-call">Book a call <span>↗</span></a>
+        <a className="header-cta" href="#book-call">{content.brand.headerCta} <span>↗</span></a>
         <button className="menu-button" type="button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-label="Toggle navigation">{menuOpen ? "×" : "Menu"}</button>
       </header>
 
@@ -556,109 +477,106 @@ export function Scene() {
         <section className="hero" id="top">
           <div className="hero-media" aria-hidden="true">
             <PortalField className="hero-field" />
-            {results.slice(0, 5).map((result, index) => <div className={`hero-tile tile-${index + 1}`} data-parallax={0.018 + index * 0.008} key={result.label}><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 52vw, 24vw" alt="" loading={index === 0 ? "eager" : "lazy"} decoding="async" fetchPriority={index === 0 ? "high" : "low"} /></div>)}
+            {content.results.items.slice(0, 5).map((result, index) => <div className={`hero-tile tile-${index + 1}`} data-parallax={0.018 + index * 0.008} key={`${result.label}-${index}`}><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 52vw, 24vw" alt="" loading={index === 0 ? "eager" : "lazy"} decoding="async" fetchPriority={index === 0 ? "high" : "low"} /></div>)}
             <div className="hero-glow" />
           </div>
           <div className="hero-copy">
-            <p className="eyebrow">Done-for-you content systems · Manila / worldwide</p>
-            <KineticHeading hero lines={["TURN YOUR", "EXPERTISE INTO", "DEMAND."]} accentLine={2} />
-            <p className="hero-lede"><KaraokeText text="We research, script, edit, publish and optimize short-form content that helps expert-led brands earn attention—and turn it into sales conversations." /></p>
-            <div className="hero-actions"><BookCall label="Book a discovery call" /><a className="text-link" href="#results">See client results <span>↓</span></a></div>
+            <p className="eyebrow">{content.hero.eyebrow}</p>
+            <KineticHeading hero lines={content.hero.heading} accentLine={content.hero.heading.length - 1} />
+            <p className="hero-lede"><KaraokeText text={content.hero.lede} /></p>
+            <div className="hero-actions"><BookCall label={content.hero.primaryCta} /><a className="text-link" href="#results">{content.hero.secondaryCta} <span>↓</span></a></div>
           </div>
           <div className="hero-proofbar">
-            <span>Strategy</span><span>Scripting</span><span>Editing</span><span>Publishing</span><span>Reporting</span>
+            {content.hero.proofbar.map((item) => <span key={item}>{item}</span>)}
           </div>
         </section>
 
         <section className="results-section" id="results">
           <div className="section-heading split-heading">
-            <div><p className="eyebrow">02 · Client before & after results</p><KineticHeading lines={["PROOF", "BEFORE", "PROMISES."]} /></div>
-            <div><p><KaraokeText text="Put the evidence where buyers can see it. This carousel is built for your approved analytics, feed transformations, inbox wins and pipeline screenshots." /></p><BookCall light /></div>
+            <div><p className="eyebrow">{content.results.eyebrow}</p><KineticHeading lines={content.results.heading} /></div>
+            <div><p><KaraokeText text={content.results.intro} /></p><BookCall light /></div>
           </div>
-          <ResultsCarousel />
-          <p className="proof-disclaimer">Proof placeholders are intentionally labeled. Replace them with approved, redacted client screenshots before launch.</p>
+          <ResultsCarousel section={content.results} />
+          <p className="proof-disclaimer">{content.results.disclaimer}</p>
         </section>
 
         <section className="services-section" id="services">
           <div className="section-heading split-heading">
-            <div><p className="eyebrow">03 · The service</p><KineticHeading lines={["YOUR CONTENT", "DEPARTMENT,", "WITHOUT THE HIRING."]} accentLine={2} /></div>
-            <div><p><KaraokeText text="One senior, connected system from idea to upload. No pile of disconnected freelancers. No half-finished content calendar. No wondering what gets published next." /></p><BookCall /></div>
+            <div><p className="eyebrow">{content.services.eyebrow}</p><KineticHeading lines={content.services.heading} accentLine={content.services.heading.length - 1} /></div>
+            <div><p><KaraokeText text={content.services.intro} /></p><BookCall /></div>
           </div>
           <div className="service-list">
-            {services.map((service) => <Reveal key={service.number}><article className="service-row"><span>{service.number}</span><h3>{service.title}</h3><p>{service.copy}</p><i>↗</i></article></Reveal>)}
+            {content.services.items.map((service, index) => <Reveal key={`${service.number}-${index}`}><article className="service-row"><span>{service.number}</span><h3>{service.title}</h3><p>{service.copy}</p><i>↗</i></article></Reveal>)}
           </div>
         </section>
 
         <InteractiveSystemLab />
 
         <section className="case-studies-section" id="case-studies">
-          <div className="section-heading"><p className="eyebrow">04 · Case studies</p><KineticHeading lines={["THE STORY", "BEHIND THE RESULT."]} /><BookCall light /></div>
+          <div className="section-heading"><p className="eyebrow">{content.caseStudies.eyebrow}</p><KineticHeading lines={content.caseStudies.heading} /><BookCall light /></div>
           <div className="case-grid">
-            {[
-              { title: "From scattered posting to a repeatable authority system", image: "/images/invicti-strategy.webp", tag: "Strategy + content operations" },
-              { title: "From slow production to a monthly short-form engine", image: "/images/invicti-motion.webp", tag: "Scripting + production" },
-              { title: "From attention to tracked sales conversations", image: "/images/invicti-portal.webp", tag: "Publishing + lead flow" },
-            ].map((study, index) => <article className={`case-panel case-${index + 1}`} key={study.title}><img src={study.image} alt="" loading="lazy" data-parallax="0.028" /><div className="case-overlay"><p>{study.tag}</p><h3>{study.title}</h3><div><span>Challenge</span><span>System</span><span>Verified outcome</span></div><em>Case-study copy and proof slot</em></div></article>)}
+            {content.caseStudies.items.map((study, index) => <article className={`case-panel case-${index + 1}`} key={`${study.title}-${index}`}><img src={study.image} alt={study.title} loading="lazy" data-parallax="0.028" /><div className="case-overlay"><p>{study.tag}</p><h3>{study.title}</h3><div>{study.stages.map((stage) => <span key={stage}>{stage}</span>)}</div><em>{study.note}</em></div></article>)}
           </div>
           <div className="testimonial-strip" aria-label="Testimonials">
-            <p className="eyebrow">Client words</p>
-            {[1, 2, 3].map((item) => <blockquote key={item}><span>“</span><p>Add an approved client quote about the process, the experience and the business impact.</p><cite>Client name · Company · permission confirmed</cite></blockquote>)}
+            <p className="eyebrow">{content.caseStudies.testimonialEyebrow}</p>
+            {content.caseStudies.testimonials.map((item, index) => <blockquote key={`${item.citation}-${index}`}><span>“</span><p>{item.quote}</p><cite>{item.citation}</cite></blockquote>)}
           </div>
         </section>
 
         <section className="process-section" id="process">
           <div className="process-copy">
-            <p className="eyebrow">05 · How we work together</p>
-            <KineticHeading lines={["ONE SYSTEM.", "SIX CLEAR", "MOVES."]} />
-            <p><KaraokeText text="Each cycle turns what you know into strategic content, then turns performance data into the next sharper cycle." /></p>
+            <p className="eyebrow">{content.process.eyebrow}</p>
+            <KineticHeading lines={content.process.heading} />
+            <p><KaraokeText text={content.process.intro} /></p>
             <BookCall />
           </div>
           <div className="process-visual">
             <div className="process-screen">
-              <div className="screen-top"><span>INVICTI / CONTENT OS</span><i>Cycle 01 · Active</i></div>
-              <div className="screen-preview"><img src="/images/project-gallery/video-editing-640.webp" srcSet="/images/project-gallery/video-editing-640.webp 640w, /images/project-gallery/video-editing-1200.webp 1200w" sizes="(max-width: 760px) calc(100vw - 54px), 56vw" alt="A video editing workspace used as a process preview" loading="lazy" decoding="async" data-parallax="0.02" /><span>04: Edit in progress</span></div>
-              <div className="screen-timeline">{process.map((step, index) => <span key={step.number} style={{ width: `${12 + index * 3}%` }} />)}</div>
+              <div className="screen-top"><span>{content.process.screenLabel}</span><i>{content.process.screenStatus}</i></div>
+              <div className="screen-preview"><img src={compactImage(content.process.previewImage)} srcSet={`${compactImage(content.process.previewImage)} 640w, ${content.process.previewImage} 1200w`} sizes="(max-width: 760px) calc(100vw - 54px), 56vw" alt={content.process.previewAlt} loading="lazy" decoding="async" data-parallax="0.02" /><span>{content.process.previewStatus}</span></div>
+              <div className="screen-timeline">{content.process.items.map((step, index) => <span key={`${step.number}-${index}`} style={{ width: `${12 + index * 3}%` }} />)}</div>
             </div>
-            <div className="process-steps">{process.map((step) => <article key={step.number}><span>{step.number}</span><div><h3>{step.title}</h3><p>{step.copy}</p></div></article>)}</div>
+            <div className="process-steps">{content.process.items.map((step, index) => <article key={`${step.number}-${index}`}><span>{step.number}</span><div><h3>{step.title}</h3><p>{step.copy}</p></div></article>)}</div>
           </div>
         </section>
 
         <section className="more-results-section" id="more-results">
-          <div className="section-heading split-heading"><div><p className="eyebrow">06 · More before & after results</p><KineticHeading lines={["THE RECEIPTS", "KEEP GOING."]} /></div><div><p><KaraokeText text="Use this proof wall for the volume the brief calls for—content performance, profile growth, feed transformations and direct client messages." /></p><BookCall /></div></div>
+          <div className="section-heading split-heading"><div><p className="eyebrow">{content.proofWall.eyebrow}</p><KineticHeading lines={content.proofWall.heading} /></div><div><p><KaraokeText text={content.proofWall.intro} /></p><BookCall /></div></div>
           <div className="proof-wall">
-            {results.concat(results.slice(0, 2)).map((result, index) => <article key={`${result.label}-${index}`}><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 48vw, 25vw" alt="" loading="lazy" decoding="async" data-parallax={0.02 + (index % 3) * 0.008} /><div><span>{String(index + 1).padStart(2, "0")}</span><b>{index % 2 === 0 ? "Before → after" : "Client result"}</b><small>Verified screenshot slot</small></div></article>)}
+            {content.proofWall.items.map((result, index) => <article key={`${result.label}-${index}`}><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 48vw, 25vw" alt={result.category} loading="lazy" decoding="async" data-parallax={0.02 + (index % 3) * 0.008} /><div><span>{String(index + 1).padStart(2, "0")}</span><b>{result.category}</b><small>{result.note}</small></div></article>)}
           </div>
         </section>
 
         <section className="lead-results-section" id="lead-results">
-          <div className="lead-intro"><p className="eyebrow">07 · Client lead results</p><KineticHeading lines={["ATTENTION IS", "ONLY HALF", "THE JOB."]} /><p><KaraokeText text="Show the bridge from content to commercial outcome: qualified inquiries, booked calls, pipeline and reply-to-call conversion." /></p><BookCall light /></div>
-          <div className="metrics-grid">{leadResults.map((result) => <article key={result.label}><strong>{result.metric}</strong><span>{result.label}</span><small>{result.note}</small></article>)}</div>
-          <div className="pipeline-card"><div><span>Content</span><i>→</i><span>Qualified attention</span><i>→</i><span>Conversation</span><i>→</i><span>Booked call</span></div><p>Connect screenshots to source data so every claim is credible and easy to verify.</p></div>
+          <div className="lead-intro"><p className="eyebrow">{content.leadResults.eyebrow}</p><KineticHeading lines={content.leadResults.heading} /><p><KaraokeText text={content.leadResults.intro} /></p><BookCall light /></div>
+          <div className="metrics-grid">{content.leadResults.items.map((result, index) => <article key={`${result.label}-${index}`}><strong>{result.metric}</strong><span>{result.label}</span><small>{result.note}</small></article>)}</div>
+          <div className="pipeline-card"><div>{content.leadResults.pipeline.map((step, index) => <Fragment key={`${step}-${index}`}><span>{step}</span>{index < content.leadResults.pipeline.length - 1 && <i>→</i>}</Fragment>)}</div><p>{content.leadResults.pipelineNote}</p></div>
         </section>
 
         <section className="pricing-section" id="pricing">
-          <div className="section-heading split-heading"><div><p className="eyebrow">08 · Packages</p><KineticHeading lines={["A CONTENT TEAM", "FOR LESS THAN", "ONE FULL-TIME HIRE."]} /></div><div><p><KaraokeText text="Clear starting points. Final scope, platforms and cadence are confirmed after the discovery call." /></p><BookCall /></div></div>
+          <div className="section-heading split-heading"><div><p className="eyebrow">{content.pricing.eyebrow}</p><KineticHeading lines={content.pricing.heading} /></div><div><p><KaraokeText text={content.pricing.intro} /></p><BookCall /></div></div>
           <div className="pricing-grid">
-            {packages.map((plan) => <article className={plan.featured ? "price-card featured" : "price-card"} key={plan.name}>{plan.featured && <span className="popular">Most popular</span>}<header><p>{plan.name}</p><span>{plan.volume}</span></header><h3>{plan.price}<small>/ month</small></h3><p>{plan.description}</p><ul>{plan.features.map((feature) => <li key={feature}><span>＋</span>{feature}</li>)}</ul><a href={BOOKING_LINK}>Book a call <span>↗</span></a></article>)}
+            {content.pricing.items.map((plan, index) => <article className={plan.featured ? "price-card featured" : "price-card"} key={`${plan.name}-${index}`}>{plan.featured && <span className="popular">{content.pricing.popularLabel}</span>}<header><p>{plan.name}</p><span>{plan.volume}</span></header><h3>{plan.price}<small>{content.pricing.billingSuffix}</small></h3><p>{plan.description}</p><ul>{plan.features.map((feature, featureIndex) => <li key={`${feature}-${featureIndex}`}><span>＋</span>{feature}</li>)}</ul><a href={content.brand.bookingLink}>{content.pricing.cardCta} <span>↗</span></a></article>)}
           </div>
-          <p className="pricing-note">Prices are starting points in USD and exclude paid media, travel, specialist production and third-party fees.</p>
+          <p className="pricing-note">{content.pricing.note}</p>
         </section>
 
         <section className="faq-section" id="faq">
-          <div className="faq-sticky"><p className="eyebrow">09 · Frequently asked</p><KineticHeading lines={["ASK", "THE HARD", "QUESTIONS."]} /><p><KaraokeText text="Clear scope. Honest expectations. No mystery around what happens next." /></p><BookCall /></div>
-          <div className="faq-list">{faqs.map(([question, answer], index) => <article className={activeFaq === index ? "open" : ""} key={question}><button type="button" onClick={() => setActiveFaq(activeFaq === index ? null : index)} aria-expanded={activeFaq === index}><span>{String(index + 1).padStart(2, "0")}</span><strong>{question}</strong><i>{activeFaq === index ? "−" : "+"}</i></button><div className="faq-answer"><p>{answer}</p></div></article>)}</div>
+          <div className="faq-sticky"><p className="eyebrow">{content.faq.eyebrow}</p><KineticHeading lines={content.faq.heading} /><p><KaraokeText text={content.faq.intro} /></p><BookCall /></div>
+          <div className="faq-list">{content.faq.items.map(({ question, answer }, index) => <article className={activeFaq === index ? "open" : ""} key={`${question}-${index}`}><button type="button" onClick={() => setActiveFaq(activeFaq === index ? null : index)} aria-expanded={activeFaq === index}><span>{String(index + 1).padStart(2, "0")}</span><strong>{question}</strong><i>{activeFaq === index ? "−" : "+"}</i></button><div className="faq-answer"><p>{answer}</p></div></article>)}</div>
         </section>
 
         <section className="book-section" id="book-call">
           <PortalField className="book-field" />
           <div className="book-orbit" aria-hidden="true"><span /><span /><span /></div>
-          <p className="eyebrow">10 · Your next move</p>
-          <KineticHeading lines={["LET’S BUILD THE", "CONTENT SYSTEM", "YOUR SALES TEAM WANTS."]} accentLine={2} />
-          <p><KaraokeText text="Bring your offer, your current content and the bottleneck. Leave with a clear recommendation—even if we are not the right fit." /></p>
-          <a className="book-button" href={BOOKING_LINK}>Book a discovery call <span>↗</span></a>
-          <footer><span>© {new Date().getFullYear()} INVICTI</span><a href="mailto:hello@invicti.agency">hello@invicti.agency</a><a href="#top">Back to top ↑</a></footer>
+          <p className="eyebrow">{content.book.eyebrow}</p>
+          <KineticHeading lines={content.book.heading} accentLine={content.book.heading.length - 1} />
+          <p><KaraokeText text={content.book.intro} /></p>
+          <a className="book-button" href={content.brand.bookingLink}>{content.book.cta} <span>↗</span></a>
+          <footer><span>© {new Date().getFullYear()} {content.book.copyright}</span><a href={`mailto:${content.book.email}`}>{content.book.email}</a><a href="#top">{content.book.backToTop}</a></footer>
         </section>
       </main>
     </div>
+    </ContentContext.Provider>
   );
 }

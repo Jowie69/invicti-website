@@ -6,15 +6,18 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && mkdir -p dist/server && cp worker/index.js dist/server/index.js",
+    "db:generate": "drizzle-kit generate",
     "preview": "vite preview"
   },
   "dependencies": {
     "@openai/sites-vite-plugin": "^0.2.0",
+    "@supabase/supabase-js": "2.112.4",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@types/three": "0.128.0",
     "@vitejs/plugin-react": "latest",
+    "drizzle-orm": "0.45.2",
     "matter-js": "^0.20.0",
     "react": "latest",
     "react-dom": "latest",
@@ -26,6 +29,8 @@
     "@rolldown/binding-win32-arm64-msvc": "^1.2.6"
   },
   "devDependencies": {
-    "@types/matter-js": "^0.20.2"
+    "@cloudflare/workers-types": "4.20260515.1",
+    "@types/matter-js": "^0.20.2",
+    "drizzle-kit": "0.31.10"
   }
 }
