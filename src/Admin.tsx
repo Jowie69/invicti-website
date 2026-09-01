@@ -170,6 +170,96 @@ function ValueEditor({ label, value, template, connection, onChange, depth = 0 }
   return <label className="admin-field"><span>{fieldLabel}</span>{long ? <textarea rows={3} value={stringValue} onChange={(event) => onChange(event.target.value)} /> : <input type="text" value={stringValue} onChange={(event) => onChange(event.target.value)} />}</label>;
 }
 
+function AddAdminGuide() {
+  const [email, setEmail] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const sql = email.trim()
+    ? `INSERT INTO public.site_admins (user_id)\nSELECT id FROM auth.users WHERE email = '${email.trim()}'\nON CONFLICT (user_id) DO NOTHING;`
+    : `-- Type the new admin's email above to generate the SQL\n-- INSERT INTO public.site_admins (user_id)\n-- SELECT id FROM auth.users WHERE email = 'their@email.com'\n-- ON CONFLICT (user_id) DO NOTHING;`;
+
+  const removeAdminSql = email.trim()
+    ? `DELETE FROM public.site_admins\nWHERE user_id = (SELECT id FROM auth.users WHERE email = '${email.trim()}');`
+    : `-- Type the admin's email above first`;
+
+  const copy = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="admin-add-admin-guide">
+      <div className="admin-panel-intro" style={{ marginTop: "2.5rem" }}>
+        <span className="admin-kicker">ACCESS CONTROL</span>
+        <h2>Add or remove admins</h2>
+        <p>
+          Admin access is managed directly in Supabase for security — no client-side code can add
+          users to <code>site_admins</code>. Follow the steps below to grant or revoke access.
+        </p>
+      </div>
+
+      <div className="admin-setup-steps">
+        <span>1</span><p>Go to <strong>Supabase → Authentication → Users</strong> and create a new user with an email and password (or invite them).</p>
+        <span>2</span><p>Enter their email address below to generate the SQL.</p>
+        <span>3</span><p>Copy the SQL and run it in <strong>Supabase → SQL Editor</strong>.</p>
+        <span>4</span><p>Share the login credentials with the new admin — they sign in at <code>/admin</code> using the Supabase email and password.</p>
+      </div>
+
+      <div className="admin-add-admin-form">
+        <label className="admin-field">
+          <span>New admin's email</span>
+          <input
+            id="new-admin-email"
+            type="email"
+            placeholder="newadmin@example.com"
+            value={email}
+            onChange={(e) => { setEmail(e.target.value); setCopied(false); }}
+          />
+        </label>
+
+        <label className="admin-field">
+          <span>SQL to run in Supabase → SQL Editor</span>
+          <textarea
+            id="admin-sql-snippet"
+            rows={4}
+            readOnly
+            value={sql}
+            style={{ fontFamily: "monospace", fontSize: "0.8rem", background: "var(--admin-code-bg, #0f1117)", color: "var(--admin-code-color, #a5f3fc)", resize: "vertical" }}
+          />
+        </label>
+
+        <div className="admin-inline-actions">
+          <button
+            type="button"
+            className="admin-primary"
+            onClick={() => copy(sql)}
+            disabled={!email.trim()}
+          >
+            {copied ? "Copied!" : "Copy SQL to add admin"}
+          </button>
+        </div>
+      </div>
+
+      <details className="admin-danger-zone" style={{ marginTop: "1.5rem" }}>
+        <summary style={{ cursor: "pointer", fontWeight: 600, color: "var(--admin-danger, #f87171)" }}>⚠ Remove an admin</summary>
+        <div style={{ marginTop: "0.75rem" }}>
+          <p style={{ marginBottom: "0.5rem", fontSize: "0.875rem" }}>Run this SQL in Supabase to remove <strong>{email.trim() || "the admin (enter their email above)"}</strong> from <code>site_admins</code>. Their Supabase Auth account will still exist — delete it in Authentication → Users if needed.</p>
+          <textarea
+            rows={3}
+            readOnly
+            value={removeAdminSql}
+            style={{ width: "100%", fontFamily: "monospace", fontSize: "0.8rem", background: "var(--admin-code-bg, #0f1117)", color: "#f87171", resize: "vertical", padding: "0.5rem", borderRadius: "6px", border: "1px solid #f8717140" }}
+          />
+          <div className="admin-inline-actions" style={{ marginTop: "0.5rem" }}>
+            <button type="button" className="admin-danger-text" onClick={() => copy(removeAdminSql)} disabled={!email.trim()}>Copy remove SQL</button>
+          </div>
+        </div>
+      </details>
+    </div>
+  );
+}
+
 function ConnectionPanel({ connection, onConnected }: { connection: CmsConnection | null; onConnected: (connection: CmsConnection) => void }) {
   const [projectUrl, setProjectUrl] = useState(connection?.projectUrl || "");
   const [publishableKey, setPublishableKey] = useState(connection?.publishableKey || "");
@@ -217,6 +307,7 @@ function ConnectionPanel({ connection, onConnected }: { connection: CmsConnectio
         <button className="admin-primary" type="submit" disabled={busy}>{busy ? "Testing connection…" : connection ? "Test & update connection" : "Test & connect"}</button>
       </form>
       {message && <div className={message.includes("saved") || message.includes("copied") ? "admin-alert success" : "admin-alert error"}>{message}</div>}
+      <AddAdminGuide />
     </div>
   );
 }
