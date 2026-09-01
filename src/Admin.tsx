@@ -78,8 +78,8 @@ function Login({ connection, onLogin }: { connection: CmsConnection | null; onLo
       <a className="admin-back-link" href="/">← Back to website</a>
       <form className="admin-login-card" onSubmit={submit}>
         <span className="admin-kicker">INVICTI CMS</span>
-        <h1>{connection ? "Supabase admin sign in" : "Admin access"}</h1>
-        <p>{connection ? "Use the email and password you created in Supabase Auth." : "Temporary access is active until this site is connected to Supabase."}</p>
+        <h1>{connection ? "Admin sign in" : "Admin access"}</h1>
+        <p>{connection ? "Enter your email and password." : "Temporary access is active until this site is connected to Supabase."}</p>
         <label>{connection ? "Email" : "Username"}<input type={connection ? "email" : "text"} value={identity} onChange={(event) => setIdentity(event.target.value)} autoComplete="username" required /></label>
         <label>Password<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /></label>
         {error && <div className="admin-alert error">{error}</div>}
