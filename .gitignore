@@ -3,3 +3,5 @@ dist
 *.tsbuildinfo
 .DS_Store
 public/synthralos-halftone.html
+.env.local
+.env

@@ -28,6 +28,12 @@ export const getSupabaseClient = (connection: CmsConnection) => {
 };
 
 export async function loadConnection(): Promise<CmsConnection | null> {
+  // Check build-time env vars first (set once in Vercel dashboard → globally connected on all devices)
+  const envUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const envKey = import.meta.env.VITE_SUPABASE_KEY as string | undefined;
+  if (envUrl && envKey) {
+    return { projectUrl: envUrl.trim().replace(/\/$/, ""), publishableKey: envKey.trim() };
+  }
   try {
     const response = await fetch("/api/connection", { headers: { Accept: "application/json" } });
     if (response.ok && isJsonResponse(response)) {
