@@ -1,6 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="15" fill="#0a0810"/>
-  <circle cx="32" cy="32" r="22" fill="none" stroke="#7451ff" stroke-width="3"/>
-  <path d="M22 16h20v7h-6v18h6v7H22v-7h6V23h-6z" fill="#f4f1ea"/>
-  <circle cx="48" cy="16" r="6" fill="#ff5d4d"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1593.77 1462.07">
+  <defs>
+    <linearGradient id="invicti-gradient" x1="221.34" y1="1683.41" x2="1614.73" y2="290.03" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff1f50"/>
+      <stop offset="1" stop-color="#ed2f00"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#invicti-gradient)" d="M1371.06,419.28l22.86-54.01,40.98-96.83c31.44-74.32,9.05-158.96-51.5-208.47l-88.26-52.24-.04-.02-13-7.7-276.21,314.98-.07.03-227.12,92.41c-19.01,7.74-36.04,19.65-49.82,34.86l-234.27,260.69h171.02l-167.93,191.51h.01l-71.07,81.05-132.37,150.95L0,1462.07h1176.5l211.06-567.58,32.23-86.69c38.77-104.28,97.91-199.8,173.98-281.02v-107.5h-222.71ZM1169.96,894.49l-158.88,375.44h-414.23l499.51-566.95h-203.83l389.13-439.53-108.18,266.81h150.61l-154.14,364.23Z"/>
 </svg>

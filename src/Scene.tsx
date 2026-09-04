@@ -3,6 +3,7 @@ import { Bodies, Body, Composite, Constraint, Engine, Sleeping, Vector, type IBo
 
 import { defaultContent, type SiteContent } from "./content";
 import { loadPublicContent } from "./public-content";
+import longLogoUrl from "../long-logo.svg";
 
 const compactImage = (source: string) => source.startsWith("/images/project-gallery/") ? source.replace("-1200.webp", "-640.webp") : source;
 
@@ -121,7 +122,7 @@ function PortalField({ className = "" }: { className?: string }) {
       const cx = width * 0.5 + mouseX, cy = height * 0.5 + mouseY, unit = Math.min(width, height);
       const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, unit * 0.62);
       glow.addColorStop(0, "rgba(209,196,255,.25)");
-      glow.addColorStop(0.18, "rgba(117,82,255,.13)");
+      glow.addColorStop(0.18, "rgba(255,31,80,.13)");
       glow.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, width, height);
@@ -144,7 +145,7 @@ function PortalField({ className = "" }: { className?: string }) {
         ctx.beginPath();
         ctx.arc(x, y, star.size, 0, Math.PI * 2);
         ctx.fillStyle = index % 11 === 0 ? "rgba(255,96,79,.9)" : `rgba(244,240,255,${0.25 + star.size * 0.12})`;
-        ctx.shadowColor = index % 11 === 0 ? "#ff604f" : "#8f6fff";
+        ctx.shadowColor = index % 11 === 0 ? "#ed2f00" : "#ff1f50";
         ctx.shadowBlur = star.size * 7;
         ctx.fill();
       });
@@ -188,6 +189,86 @@ function Reveal({ children, className = "" }: { children: ReactNode; className?:
   }, []);
 
   return <div ref={ref} className={`reveal ${className}`}>{children}</div>;
+}
+
+const trailImages = [
+  "/images/project-gallery/content-creation-640.webp",
+  "/images/project-gallery/ai-automation-640.webp",
+  "/images/project-gallery/video-editing-640.webp",
+  "/images/project-gallery/copy-writing-640.webp",
+  "/images/project-gallery/web-development-640.webp",
+  "/images/project-gallery/animation-640.webp",
+];
+
+function CursorTrail() {
+  const layerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const layer = layerRef.current;
+    const hero = layer?.parentElement;
+    if (!layer || !hero || !window.matchMedia("(pointer: fine)").matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const items = Array.from(layer.querySelectorAll<HTMLImageElement>("img"));
+    let index = 0;
+    let previousX = -1000;
+    let previousY = -1000;
+    const onPointerMove = (event: PointerEvent) => {
+      const distance = Math.hypot(event.clientX - previousX, event.clientY - previousY);
+      if (distance < 82) return;
+      previousX = event.clientX;
+      previousY = event.clientY;
+      const rect = hero.getBoundingClientRect();
+      const item = items[index % items.length];
+      const direction = index % 2 === 0 ? 1 : -1;
+      item.style.left = `${event.clientX - rect.left}px`;
+      item.style.top = `${event.clientY - rect.top}px`;
+      item.animate([
+        { opacity: 0, transform: `translate(-50%,-42%) rotate(${direction * 9}deg) scale(.62)` },
+        { opacity: .76, transform: `translate(-50%,-58%) rotate(${direction * -3}deg) scale(1)`, offset: .2 },
+        { opacity: 0, transform: `translate(-50%,-88%) rotate(${direction * -9}deg) scale(.9)` },
+      ], { duration: 1050, easing: "cubic-bezier(.16,1,.3,1)", fill: "both" });
+      index += 1;
+    };
+    hero.addEventListener("pointermove", onPointerMove, { passive: true });
+    return () => hero.removeEventListener("pointermove", onPointerMove);
+  }, []);
+
+  return <div className="cursor-trail" ref={layerRef} aria-hidden="true">{trailImages.map((image) => <img src={image} alt="" key={image} />)}</div>;
+}
+
+function ScrollStroke() {
+  const sectionRef = useRef<SVGSVGElement>(null);
+  const pathRef = useRef<SVGPathElement>(null);
+
+  useEffect(() => {
+    const svg = sectionRef.current;
+    const path = pathRef.current;
+    const section = svg?.parentElement;
+    if (!svg || !path || !section) return;
+    let frame = 0;
+    const update = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const rect = section.getBoundingClientRect();
+        const progress = Math.max(0, Math.min(1, (window.innerHeight * .82 - rect.top) / (rect.height + window.innerHeight * .35)));
+        path.style.strokeDashoffset = `${1 - progress}`;
+      });
+    };
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    update();
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  return (
+    <svg className="process-stroke" ref={sectionRef} viewBox="0 0 1200 1800" preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="process-line" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff" /><stop offset=".48" stopColor="#ff1f50" /><stop offset="1" stopColor="#ed2f00" /></linearGradient></defs>
+      <path ref={pathRef} pathLength="1" d="M-40 90 C 360 40, 460 360, 955 290 S 1270 660, 810 760 S 120 820, 270 1180 S 980 1130, 1240 1510" />
+    </svg>
+  );
 }
 
 function BookCall({ light = false, label }: { light?: boolean; label?: string }) {
@@ -429,6 +510,23 @@ export function Scene() {
   }, []);
 
   useEffect(() => {
+    const root = document.documentElement;
+    let frame = 0;
+    const onPointerMove = (event: PointerEvent) => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        root.style.setProperty("--pointer-x", `${event.clientX}px`);
+        root.style.setProperty("--pointer-y", `${event.clientY}px`);
+      });
+    };
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("pointermove", onPointerMove);
+    };
+  }, []);
+
+  useEffect(() => {
     const revealTargets = document.querySelectorAll<HTMLElement>(".section-heading, .process-copy, .process-screen, .case-panel, .testimonial-strip blockquote, .proof-wall article, .lead-intro, .metrics-grid article, .pipeline-card, .price-card, .faq-sticky, .faq-list article, .book-section > *:not(.book-orbit):not(.book-field)");
     const parallaxTargets = document.querySelectorAll<HTMLElement>("[data-parallax]");
     const observer = new IntersectionObserver((entries) => {
@@ -465,7 +563,7 @@ export function Scene() {
       <div className="noise" aria-hidden="true" />
       <div className="scroll-progress" aria-hidden="true" />
       <header className="site-header">
-        <a className="wordmark" href="#top" aria-label={`${content.brand.wordmark} home`}>{content.brand.wordmark}<span>®</span></a>
+        <a className="wordmark" href="#top" aria-label={`${content.brand.wordmark} home`}><img src={longLogoUrl} alt="" /></a>
         <nav className={menuOpen ? "site-nav open" : "site-nav"} aria-label="Primary navigation">
           {content.brand.nav.map((item) => <a key={`${item.href}-${item.label}`} href={item.href} onClick={() => setMenuOpen(false)}>{item.label}</a>)}
         </nav>
@@ -475,8 +573,10 @@ export function Scene() {
 
       <main>
         <section className="hero" id="top">
+          <CursorTrail />
           <div className="hero-media" aria-hidden="true">
             <PortalField className="hero-field" />
+            <div className="hero-pattern" />
             {content.results.items.slice(0, 5).map((result, index) => <div className={`hero-tile tile-${index + 1}`} data-parallax={0.018 + index * 0.008} key={`${result.label}-${index}`}><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 52vw, 24vw" alt="" loading={index === 0 ? "eager" : "lazy"} decoding="async" fetchPriority={index === 0 ? "high" : "low"} /></div>)}
             <div className="hero-glow" />
           </div>
@@ -490,6 +590,8 @@ export function Scene() {
             {content.hero.proofbar.map((item) => <span key={item}>{item}</span>)}
           </div>
         </section>
+
+        <div className="brand-ribbon" aria-hidden="true"><div>{Array.from({ length: 6 }, (_, index) => <Fragment key={index}><span>DECISIVE STRATEGY</span><b>✦</b><span>SHARP EXECUTION</span><b>✦</b><span>PACK POWER</span><b>✦</b></Fragment>)}</div></div>
 
         <section className="results-section" id="results">
           <div className="section-heading split-heading">
@@ -524,6 +626,7 @@ export function Scene() {
         </section>
 
         <section className="process-section" id="process">
+          <ScrollStroke />
           <div className="process-copy">
             <p className="eyebrow">{content.process.eyebrow}</p>
             <KineticHeading lines={content.process.heading} />
@@ -573,7 +676,7 @@ export function Scene() {
           <KineticHeading lines={content.book.heading} accentLine={content.book.heading.length - 1} />
           <p><KaraokeText text={content.book.intro} /></p>
           <a className="book-button" href={content.brand.bookingLink}>{content.book.cta} <span>↗</span></a>
-          <footer><span>© {new Date().getFullYear()} {content.book.copyright}</span><a href={`mailto:${content.book.email}`}>{content.book.email}</a><a href="#top">{content.book.backToTop}</a></footer>
+          <footer><span>© {new Date().getFullYear()} {content.book.copyright}</span><a href={`mailto:${content.book.email}`}>{content.book.email}</a><a className="footer-logo" href="#top" aria-label={`${content.brand.wordmark} home`}><img src={longLogoUrl} alt="" /></a><a href="#top">{content.book.backToTop}</a></footer>
         </section>
       </main>
     </div>
