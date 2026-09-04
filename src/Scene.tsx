@@ -57,27 +57,55 @@ function KineticHeading({ lines, hero = false, accentLine = -1 }: { lines: strin
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        element.classList.add("kinetic-visible");
-        observer.disconnect();
-      }
-    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
-    observer.observe(element);
-    return () => observer.disconnect();
+    const characters = Array.from(element.querySelectorAll<HTMLElement>(".kinetic-char"));
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let frame = 0;
+
+    const update = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const rect = element.getBoundingClientRect();
+        const travel = Math.max(260, window.innerHeight * .48);
+        const progress = reducedMotion ? 1 : Math.max(0, Math.min(1, (window.innerHeight * .94 - rect.top) / travel));
+        const eased = 1 - Math.pow(1 - progress, 3);
+        characters.forEach((character) => {
+          const distance = Number(character.dataset.distance || 0);
+          const remaining = 1 - eased;
+          character.style.transform = `translate3d(${distance * 34 * remaining}px, ${Math.abs(distance) * 2.2 * remaining}px, 0) rotateX(${distance * 10 * remaining}deg)`;
+          character.style.opacity = `${.2 + eased * .8}`;
+          character.style.filter = `blur(${remaining * 7}px)`;
+        });
+      });
+    };
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update, { passive: true });
+    update();
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
   }, []);
 
+  const characterCount = lines.join("").length;
+  let characterIndex = 0;
   const content = lines.map((line, lineIndex) => (
     <span className={`kinetic-line${lineIndex === accentLine ? " accent" : ""}`} key={line}>
-      {line.split(" ").map((word, wordIndex) => (
-        <span className="kinetic-word-mask" key={`${word}-${wordIndex}`}>
-          <span className="kinetic-word" style={{ "--word-delay": `${(lineIndex * 3 + wordIndex) * 70}ms` } as CSSProperties}>{word}</span>
+      {line.split(" ").map((word, wordIndex) => {
+        const letters = [...word].map((character, index) => {
+          const distance = characterIndex - (characterCount - 1) / 2;
+          characterIndex += 1;
+          return <span className="kinetic-char" data-distance={distance} key={`${character}-${index}`} aria-hidden="true">{character}</span>;
+        });
+        return <span className="kinetic-word-mask" key={`${word}-${wordIndex}`} aria-hidden="true">
+          <span className="kinetic-word">{letters}</span>
         </span>
-      ))}
+      })}
     </span>
   ));
 
-  return hero ? <h1 ref={ref}>{content}</h1> : <h2 ref={ref}>{content}</h2>;
+  const label = lines.join(" ");
+  return hero ? <h1 ref={ref} aria-label={label}>{content}</h1> : <h2 ref={ref} aria-label={label}>{content}</h2>;
 }
 
 function PortalField({ className = "" }: { className?: string }) {
@@ -427,54 +455,53 @@ function InteractiveSystemLab() {
   );
 }
 
-function ResultsCarousel({ section }: { section: SiteContent["results"] }) {
+function ResultsStack({ section }: { section: SiteContent["results"] }) {
   const { items: results } = section;
-  const trackRef = useRef<HTMLDivElement>(null);
-  const pausedRef = useRef(false);
+  const cardRefs = useRef<Array<HTMLElement | null>>([]);
 
   useEffect(() => {
-    const track = trackRef.current;
-    if (!track || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const cards = cardRefs.current.filter((card): card is HTMLElement => Boolean(card));
+    if (!cards.length || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let frame = 0;
-    let visible = false;
-    let previousTime = performance.now();
-    const animate = (time: number) => {
-      if (!visible) return;
-      const delta = Math.min(32, time - previousTime);
-      previousTime = time;
-      if (!pausedRef.current) {
-        track.scrollLeft += delta * 0.025;
-        const loopPoint = track.scrollWidth / 2;
-        if (track.scrollLeft >= loopPoint) track.scrollLeft -= loopPoint;
-      }
-      frame = window.requestAnimationFrame(animate);
+    let starts: number[] = [];
+    const measure = () => {
+      starts = cards.map((card) => card.getBoundingClientRect().top + window.scrollY - window.innerHeight * .12);
     };
-    const observer = new IntersectionObserver(([entry]) => {
-      visible = entry.isIntersecting;
+    const update = () => {
       window.cancelAnimationFrame(frame);
-      if (visible) {
-        previousTime = performance.now();
-        frame = window.requestAnimationFrame(animate);
-      }
-    }, { rootMargin: "120px 0px", threshold: 0.01 });
-    observer.observe(track);
-    return () => { observer.disconnect(); window.cancelAnimationFrame(frame); };
+      frame = window.requestAnimationFrame(() => {
+        cards.forEach((card, index) => {
+          const distanceToNext = Math.max(window.innerHeight * .72, (starts[index + 1] ?? starts[index] + window.innerHeight) - starts[index]);
+          const progress = index === cards.length - 1 ? 0 : Math.max(0, Math.min(1, (window.scrollY - starts[index]) / distanceToNext));
+          const direction = index % 2 === 0 ? -1 : 1;
+          card.style.setProperty("--stack-scale", `${1 - progress * .09}`);
+          card.style.setProperty("--stack-rotate", `${direction * progress * 2.4}deg`);
+          card.style.setProperty("--stack-counter-rotate", `${direction * progress * -2.4}deg`);
+        });
+      });
+    };
+    const onResize = () => { measure(); update(); };
+    measure();
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", onResize);
+    };
   }, []);
 
-  const move = (direction: number) => {
-    trackRef.current?.scrollBy({ left: direction * Math.min(window.innerWidth * 0.76, 720), behavior: "smooth" });
-  };
-
   return (
-    <div className="results-carousel">
+    <div className="results-stack">
       <div className="carousel-toolbar">
         <p>{section.carouselLabel}</p>
-        <div><button type="button" onClick={() => move(-1)} aria-label="Previous result">←</button><button type="button" onClick={() => move(1)} aria-label="Next result">→</button></div>
+        <span>Scroll to reveal ↓</span>
       </div>
-      <div className="results-track" ref={trackRef} onPointerEnter={() => { pausedRef.current = true; }} onPointerLeave={() => { pausedRef.current = false; }} onFocus={() => { pausedRef.current = true; }} onBlur={() => { pausedRef.current = false; }} aria-label={section.carouselAria}>
-        {results.concat(results).map((result, index) => (
-          <article className="result-card" key={`${result.label}-${index}`} aria-hidden={index >= results.length}>
-            <div className="result-image"><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 74vw, 34vw" alt={result.category} loading="lazy" decoding="async" /><span>{result.label}</span></div>
+      <div className="results-stack-track" aria-label={section.carouselAria}>
+        {results.map((result, index) => (
+          <article ref={(element) => { cardRefs.current[index] = element; }} className="result-card sticky-result-card" key={`${result.label}-${index}`} style={{ "--stack-index": index + 1 } as CSSProperties}>
+            <div className="result-image"><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 86vw, 48vw" alt={result.category} loading="lazy" decoding="async" /><span>{result.label}</span></div>
             <div className="result-copy">
               <p>{result.category}</p>
               <div className="before-after"><span>{result.before}<small>{section.beforeCaption}</small></span><b>→</b><span>{result.after}<small>{section.afterCaption}</small></span></div>
@@ -483,6 +510,51 @@ function ResultsCarousel({ section }: { section: SiteContent["results"] }) {
           </article>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ReceiptParallax({ items }: { items: SiteContent["proofWall"]["items"] }) {
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const columnRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const speeds = [.92, 1.48, .68, 1.26];
+
+  useEffect(() => {
+    const gallery = galleryRef.current;
+    if (!gallery || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = 0;
+    const update = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const rect = gallery.getBoundingClientRect();
+        const progress = Math.max(0, Math.min(1, (window.innerHeight - rect.top) / (rect.height + window.innerHeight)));
+        columnRefs.current.forEach((column, index) => column?.style.setProperty("--receipt-y", `${progress * window.innerHeight * speeds[index]}px`));
+      });
+    };
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update, { passive: true });
+    update();
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  return (
+    <div className="receipt-gallery" ref={galleryRef} aria-label="Client proof receipts">
+      {Array.from({ length: 4 }, (_, columnIndex) => (
+        <div className="receipt-column" ref={(element) => { columnRefs.current[columnIndex] = element; }} key={columnIndex}>
+          {Array.from({ length: 3 }, (_, rowIndex) => {
+            const itemIndex = (columnIndex + rowIndex * 4) % items.length;
+            const result = items[itemIndex];
+            return <article className="receipt-card" key={`${columnIndex}-${rowIndex}-${result.label}`} aria-hidden={rowIndex === 2}>
+              <img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 48vw, 25vw" alt={rowIndex === 2 ? "" : result.category} loading="lazy" decoding="async" />
+              <div><span>{String(itemIndex + 1).padStart(2, "0")}</span><b>{result.category}</b><small>{result.note}</small></div>
+            </article>;
+          })}
+        </div>
+      ))}
     </div>
   );
 }
@@ -598,7 +670,7 @@ export function Scene() {
             <div><p className="eyebrow">{content.results.eyebrow}</p><KineticHeading lines={content.results.heading} /></div>
             <div><p><KaraokeText text={content.results.intro} /></p><BookCall light /></div>
           </div>
-          <ResultsCarousel section={content.results} />
+          <ResultsStack section={content.results} />
           <p className="proof-disclaimer">{content.results.disclaimer}</p>
         </section>
 
@@ -645,9 +717,7 @@ export function Scene() {
 
         <section className="more-results-section" id="more-results">
           <div className="section-heading split-heading"><div><p className="eyebrow">{content.proofWall.eyebrow}</p><KineticHeading lines={content.proofWall.heading} /></div><div><p><KaraokeText text={content.proofWall.intro} /></p><BookCall /></div></div>
-          <div className="proof-wall">
-            {content.proofWall.items.map((result, index) => <article key={`${result.label}-${index}`}><img src={compactImage(result.image)} srcSet={`${compactImage(result.image)} 640w, ${result.image} 1200w`} sizes="(max-width: 760px) 48vw, 25vw" alt={result.category} loading="lazy" decoding="async" data-parallax={0.02 + (index % 3) * 0.008} /><div><span>{String(index + 1).padStart(2, "0")}</span><b>{result.category}</b><small>{result.note}</small></div></article>)}
-          </div>
+          <ReceiptParallax items={content.proofWall.items} />
         </section>
 
         <section className="lead-results-section" id="lead-results">
@@ -676,7 +746,7 @@ export function Scene() {
           <KineticHeading lines={content.book.heading} accentLine={content.book.heading.length - 1} />
           <p><KaraokeText text={content.book.intro} /></p>
           <a className="book-button" href={content.brand.bookingLink}>{content.book.cta} <span>↗</span></a>
-          <footer><span>© {new Date().getFullYear()} {content.book.copyright}</span><a href={`mailto:${content.book.email}`}>{content.book.email}</a><a className="footer-logo" href="#top" aria-label={`${content.brand.wordmark} home`}><img src={longLogoUrl} alt="" /></a><a href="#top">{content.book.backToTop}</a></footer>
+          <footer><span>© {new Date().getFullYear()} {content.book.copyright}</span><a href={`mailto:${content.book.email}`}>{content.book.email}</a><a href="https://skiper-ui.com" target="_blank" rel="noreferrer">Motion · Skiper UI</a><a className="footer-logo" href="#top" aria-label={`${content.brand.wordmark} home`}><img src={longLogoUrl} alt="" /></a><a href="#top">{content.book.backToTop}</a></footer>
         </section>
       </main>
     </div>
