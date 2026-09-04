@@ -465,7 +465,7 @@ main > section { position: relative; }
 .faq-list article.open .faq-answer p { padding-bottom: 28px; }
 
 .book-section { position: relative; min-height: 100svh; isolation: isolate; overflow: hidden; padding: calc(10vw + 160px) 3.2vw 36px; background: #121010; }
-.book-section::before { height: clamp(360px,38vw,660px); background: linear-gradient(180deg,#fff 0%,#f8f6f6 7%,#e1d9da 19%,#b9a7aa 34%,#79585e 51%,#44282d 68%,#25191b 83%,#121010 100%); }
+.book-section::before { height: clamp(360px,38vw,660px); z-index: -1; background: linear-gradient(180deg,var(--paper) 0%,#f0eaeb 8%,#d5c4c7 20%,#a88890 34%,#6b3840 51%,#3a1e22 68%,#1e1213 85%,#121010 100%); }
 .book-section::after { content: ""; position: absolute; z-index: -2; inset: 0; background: radial-gradient(circle at 68% 48%, rgba(255,31,80,.32), transparent 48%), linear-gradient(180deg,transparent 0 26%,rgba(18,16,16,.28) 44%,#121010 100%); }
 .book-field { position: absolute; z-index: -1; inset: 0; opacity: .78; -webkit-mask-image: linear-gradient(180deg,transparent 0%,transparent 12%,#000 38%); mask-image: linear-gradient(180deg,transparent 0%,transparent 12%,#000 38%); }
 .book-section h2 { max-width: 1180px; padding-right: 2vw; font-size: clamp(64px, 7.2vw, 116px); text-shadow: 0 8px 40px rgba(0,0,0,.55); }
@@ -734,4 +734,118 @@ main > section { position: relative; }
   .admin-array { padding: 12px; }
   .admin-array-heading, .admin-item-toolbar { align-items: flex-start; flex-direction: column; }
   .admin-item-toolbar > div { flex-wrap: wrap; }
+}
+
+/* ─── Preloader ────────────────────────────────────────────────────── */
+@keyframes step-in-top {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes step-in-bottom {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes step-out-top {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-100%); }
+}
+@keyframes step-out-bottom {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+@keyframes preloader-logo-in {
+  0%   { opacity: 0; transform: scale(0.6); }
+  60%  { opacity: 1; transform: scale(1.12); }
+  80%  { transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes preloader-logo-pulse {
+  0%   { transform: scale(1); filter: brightness(1); }
+  40%  { transform: scale(1.10); filter: brightness(1.35); }
+  55%  { transform: scale(0.97); filter: brightness(0.9); }
+  70%  { transform: scale(1.04); filter: brightness(1.15); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+@keyframes preloader-logo-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(1.18); }
+}
+
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
+  pointer-events: all;
+}
+
+.preloader__stairs {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+}
+
+.preloader__stairs--top {
+  top: 0;
+  bottom: 50%;
+  align-items: flex-end;
+}
+
+.preloader__stairs--bottom {
+  top: 50%;
+  bottom: 0;
+  align-items: flex-start;
+}
+
+.preloader__step {
+  flex: 1;
+  height: 100%;
+  background: #111010;
+  will-change: transform;
+  overflow: hidden;
+}
+
+.preloader__step--top {
+  animation: step-in-top 0.42s cubic-bezier(0.76, 0, 0.24, 1) both;
+  animation-delay: var(--step-delay, 0ms);
+}
+
+.preloader__step--bottom {
+  animation: step-in-bottom 0.42s cubic-bezier(0.76, 0, 0.24, 1) both;
+  animation-delay: var(--step-delay, 0ms);
+}
+
+.preloader--exit .preloader__step--top {
+  animation: step-out-top 0.38s cubic-bezier(0.76, 0, 0.24, 1) both;
+  animation-delay: var(--step-delay, 0ms);
+}
+
+.preloader--exit .preloader__step--bottom {
+  animation: step-out-bottom 0.38s cubic-bezier(0.76, 0, 0.24, 1) both;
+  animation-delay: var(--step-delay, 0ms);
+}
+
+.preloader__logo-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.preloader__logo {
+  width: clamp(72px, 10vw, 120px);
+  height: auto;
+  animation:
+    preloader-logo-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both,
+    preloader-logo-pulse 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.72s both;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 0 24px rgba(255, 31, 80, 0.55));
+}
+
+.preloader--exit .preloader__logo {
+  animation: preloader-logo-out 0.25s ease both;
 }

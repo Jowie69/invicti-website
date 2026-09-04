@@ -126,7 +126,7 @@ export const defaultContent: SiteContent = {
     lede: "We research, script, edit, publish and optimize short-form content that helps expert-led brands earn attention—and turn it into sales conversations.",
     primaryCta: "Book a discovery call",
     secondaryCta: "See client results",
-    proofbar: ["Strategy", "Scripting", "Editing", "Publishing", "Reporting"],
+    proofbar: ["", "", "", "", ""],
   },
   results: {
     eyebrow: "02 · Client before & after results",
